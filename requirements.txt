@@ -1,0 +1,6 @@
+h5py
+pathlib
+xml
+tqdm
+ipykernel
+fabio
