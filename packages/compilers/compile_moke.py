@@ -10,66 +10,132 @@ import numpy as np
 from packages.compilers.compile_hdf5 import convertFloat
 
 
-def writeHDF5_MOKE(HDF5_path, MOKE_path, filename, x_pos, y_pos):
-    header_path = f"{MOKE_path}/info.txt"
-    header_MOKE = [["Sample name"], ["Date"]]
-    sample_name = (MOKE_path.split("/"))[-1]
-    result_path = f"./results/MOKE/{sample_name}_MOKE.dat"
-    data_mag = filename
-    data_pul = filename.replace("magnetization", "pulse")
-    data_sum = filename.replace("magnetization", "sum")
+def get_scan_number(filepath):
+    scan_number = filepath.name.split("_")[0].replace("p", "")
 
-    data_magnetization = []
-    data_pulse = []
-    data_reflectivity = []
-    results_MOKE = []
+    return scan_number
 
-    with open(header_path, "r", encoding="iso-8859-1") as header:
-        for j, line in enumerate(header):
-            if j == 0 or j == 1:
-                header_MOKE[j].append(line.split("#")[-1].strip())
-            else:
-                header_MOKE.append(line.strip().split("="))
-    nb_aq = int(header_MOKE[-1][1])
 
-    with open(data_mag, "r", encoding="iso-8859-1") as magnetization, open(
-        data_pul, "r", encoding="iso-8859-1"
-    ) as pulse, open(data_sum, "r", encoding="iso-8859-1") as reflectivity:
+def get_wafer_positions(filepath):
+    x_pos = filepath.name.split("_")[1].split("x")[-1]
+    y_pos = filepath.name.split("_")[2].split("y")[-1]
 
-        data_magnetization = readMokeDataFile(magnetization)
-        data_pulse = readMokeDataFile(pulse)
-        data_reflectivity = readMokeDataFile(reflectivity)
+    return x_pos, y_pos
 
-    with open(result_path, "r", encoding="iso-8859-1") as file:
-        results_header = next(file).split("\t")
+
+def read_header_from_moke(filepath):
+    header_dict = {}
+    fullpath = filepath.parent / "info.txt"
+
+    with open(fullpath, "r", encoding="iso-8859-1") as file:
+        header_dict["Sample name"] = file.readline().strip().replace("#", "")
+        header_dict["Date"] = file.readline().strip().replace("#", "")
         for line in file:
-            line_values = [round(float(elm), 3) for elm in line.split()]
-            if int(line_values[0]) == x_pos and int(line_values[1]) == y_pos:
-                results_MOKE = [
-                    (results_header[i + 2].strip(), elm)
-                    for i, elm in enumerate(line_values[2:])
-                ]
+            key, value = line.strip().split("=")
+            header_dict[key] = value
 
-    with h5py.File(HDF5_path, "a") as f:
-        file_group_path = f"MOKE/Scan_({x_pos}, {y_pos})"
-        f.create_group(file_group_path)
+    return header_dict
 
-        data = f.create_group(f"{file_group_path}/Data")
-        moke_header = f.create_group(f"{file_group_path}/Header")
-        moke_results = f.create_group(f"{file_group_path}/Results")
 
-        for elm in header_MOKE:
-            elm_1 = convertFloat(elm[1].strip())
-            moke_header.create_dataset(elm[0], (1,), data=elm_1)
-        for elm in results_MOKE:
-            moke_results.create_dataset(elm[0], (1,), data=elm[1])
+def read_data_from_moke(filepath):
+    mag_data, pul_data, sum_data = [], [], []
 
-        mag_dset = data.create_dataset(
-            "Magnetization", (len(data_magnetization), nb_aq), data=data_magnetization
-        )
-        pul_dset = data.create_dataset(
-            "Pulse", (len(data_pulse), nb_aq), data=data_pulse
-        )
-        sum_dset = data.create_dataset(
-            "Reflectivity", (len(data_reflectivity), nb_aq), data=data_reflectivity
-        )
+    mag_path = filepath
+    pul_path = filepath.parent / f"{filepath.name.replace('magnetization', 'pulse')}"
+    sum_path = filepath.parent / f"{filepath.name.replace('magnetization', 'sum')}"
+
+    with open(mag_path, "r") as magnetization, open(pul_path, "r") as pulse, open(
+        sum_path, "r"
+    ) as reflectivity:
+
+        magnetization = magnetization.readlines()
+        pulse = pulse.readlines()
+        reflectivity = reflectivity.readlines()
+
+        for mag, pul, sum in zip(magnetization[2:], pulse[2:], reflectivity[2:]):
+            mag = mag.strip().split()
+            pul = pul.strip().split()
+            sum = sum.strip().split()
+
+            mag_data.append([float(elm) for elm in mag])
+            pul_data.append([float(elm) for elm in pul])
+            sum_data.append([float(elm) for elm in sum])
+
+    return mag_data, pul_data, sum_data
+
+
+def get_time_from_moke(datasize):
+    time_step = 0.05  # in microsecondes (or 50ns)
+    time = [j * time_step for j in range(datasize)]
+
+    return time
+
+
+def get_results_from_moke(filepath):
+    results_dict = {}
+
+    return results_dict
+
+
+def set_instrument_from_dict(moke_dict, node):
+    for key, value in moke_dict.items():
+        if isinstance(value, dict):
+            set_instrument_from_dict(value, node.create_group(key))
+        else:
+            node[key] = value
+
+    return None
+
+
+def write_moke_to_hdf5(HDF5_path, filepath, mode="a"):
+    scan_number = get_scan_number(filepath)
+    x_pos, y_pos = get_wafer_positions(filepath)
+
+    header_dict = read_header_from_moke(filepath)
+    mag_dict, pul_dict, sum_dict = read_data_from_moke(filepath)
+    time_dict = get_time_from_moke(len(mag_dict))
+    nb_aquisitions = len(mag_dict[0])
+
+    results_dict = get_results_from_moke(filepath)
+
+    with h5py.File(HDF5_path, mode) as f:
+        scan_group = f"/entry/moke/scan_{scan_number}/"
+        scan = f.create_group(scan_group)
+
+        # Instrument group for metadata
+        instrument = scan.create_group("instrument")
+        instrument.attrs["NX_class"] = "HTinstrument"
+        instrument.attrs["x_pos"] = convertFloat(x_pos)
+        instrument.attrs["y_pos"] = convertFloat(y_pos)
+
+        set_instrument_from_dict(header_dict, instrument)
+
+        # Data group
+        data = scan.create_group("measurement")
+        data.attrs["NX_class"] = "HTmeasurement"
+        time = [convertFloat(t) for t in time_dict]
+        time_node = data.create_dataset("time", data=time, dtype="float")
+        time_node.attrs["units"] = "μm"
+
+        for i in range(nb_aquisitions):
+            mag = [convertFloat(t[i]) for t in mag_dict]
+            mag_node = data.create_dataset(
+                f"magnetization_{i+1}", data=mag, dtype="float"
+            )
+
+            pul = [convertFloat(t[i]) for t in pul_dict]
+            pul_node = data.create_dataset(f"pulse_{i+1}", data=pul, dtype="float")
+
+            sum = [convertFloat(t[i]) for t in sum_dict]
+            sum_node = data.create_dataset(
+                f"reflectivity_{i+1}", data=sum, dtype="float"
+            )
+
+            mag_node.attrs["units"] = "V"
+            pul_node.attrs["units"] = "V"
+            sum_node.attrs["units"] = "V"
+
+        # Results group
+        results = scan.create_group("results")
+        results.attrs["NX_class"] = "HTresults"
+        set_instrument_from_dict(results_dict, results)
