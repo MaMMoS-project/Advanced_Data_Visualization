@@ -86,26 +86,31 @@ def get_full_dataset(hdf5_file):
         composition = get_edx_composition(hdf5_file, edx_group_path)
 
         for element in composition:
-            print("test1")
             elm_keys = composition[element].keys()
             element_key = f"{element} Composition"
-            print("test2")
             if "AtomPercent" not in elm_keys:
+                value = np.nan
+            else:
+                value = composition[element]["AtomPercent"]
+
+            if element_key not in data:
                 data[element_key] = xr.DataArray(
                     np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
                 )
-                print("test3")
-            else:  # NEED ANOTHER CONDITION
-                value = composition[element]["AtomPercent"]
-                print("test4")
+            else:
+                # value = composition[element]["AtomPercent"]
                 data[element_key].loc[{"y": y, "x": x}] = value
-                print("test5")
 
     print(data)
 
+    # Looking for MOKE positions and scan numbers
+    positions = _get_all_positions(hdf5_file, data_type="MOKE")
+    print(positions)
+
     # Retrieve Coercivity (from MOKE results)
-    for x, y in positions:
-        moke_group_path = dr.make_group_path(["MOKE", str(x), str(y), "Results"])
+    for x, y, nb_scan in positions:
+        moke_group_path = make_group_path(["MOKE", nb_scan, "Results"])
+        print(moke_group_path)
         coercivity_value = dr.get_moke_results(
             hdf5_file, moke_group_path, result_type="Coercivity"
         )

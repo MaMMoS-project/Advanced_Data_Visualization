@@ -31,6 +31,9 @@ def get_edx_composition(hdf5_file, group_path):
             # All the elements are stored in the results group
             elements = h5f[group_path].keys()
             for element in elements:
+                # Skipping TRTResult group as it is not part of the composition
+                if "TRTResult" in element:
+                    continue
                 elm_group = h5f[f"{group_path}/{element}"]
                 # Initialization of the sub dictionary for each element
                 elm_name = element.split()[-1]
