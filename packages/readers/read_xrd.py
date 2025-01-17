@@ -7,10 +7,22 @@ Functions to read XRD data from HDF5 files
 import h5py
 
 
+def _get_attrs(name, obj):
+    """
+    Used for visit_items() to display all the subgroups and dataset
+    Disclaimer: functions starting with '_' are not made to be used by the user unless you know what you're doing
+    """
+    global attrs
+
+    if isinstance(obj, h5py.Dataset):
+        dataset = obj[()]
+        attrs[name] = dataset
+
+
 def get_xrd_results(hdf5_file, group_path, result_type):
     """
     Read the XRD results inside a hdf5 datafile, result_type has to be specified.
-    result_type can be 'Phases', 'Global Parameters' or 'R coefficients'
+    selected_result_type can be 'Phases', 'Global_Parameters' or 'R_coefficients'
 
     Parameters
     ----------
@@ -29,17 +41,23 @@ def get_xrd_results(hdf5_file, group_path, result_type):
     """
 
     global attrs
-    attrs = []
+    attrs = {}
+    parent_attrs = {}
 
     try:
         with h5py.File(hdf5_file, "r") as h5f:
-            keys = h5f[group_path].keys()
-            for key in keys:
-                if result_type in key:
-                    h5f[f"{group_path}/{key}"].visititems(_get_attrs)
+            result_types = h5f[group_path].keys()
+            for result in result_types:
+                if result_type.lower() in result:
+                    result_group = h5f[f"{group_path}/{result}"]
+                    for elm in result_group:
+                        result_group[elm].visititems(_get_attrs)
+                        # Retrieve all the elements of the group and put them in the parent dictionary
+                        parent_attrs[elm] = attrs
+                        attrs = {}
 
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
 
-    return attrs
+    return parent_attrs

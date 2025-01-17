@@ -7,23 +7,12 @@ HDF5 files for high-throughput experiment.
 """
 
 import h5py
+import math
 import xarray as xr
 import numpy as np
 from packages.readers.read_edx import get_edx_composition
 from packages.readers.read_moke import get_moke_results
 from packages.readers.read_xrd import get_xrd_results
-
-
-def _get_attrs(name, obj):
-    """
-    Used for visit_items() to display all the subgroups and dataset
-    Disclaimer: functions starting with '_' are not made to be used by the user unless you know what you're doing
-    """
-    global attrs
-
-    if isinstance(obj, h5py.Dataset):
-        dataset = obj[()]
-        attrs.append([name, dataset])
 
 
 def _get_all_positions(hdf5_file, data_type: str):
@@ -71,9 +60,8 @@ def make_group_path(widget_values):
 
 # Construct the xarray Dataset with composition, coercivity, and lattice parameter
 def get_full_dataset(hdf5_file):
+    # Looking for EDX positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="EDX")
-
-    print(positions)
 
     x_vals = sorted(set([pos[0] for pos in positions]))
     y_vals = sorted(set([pos[1] for pos in positions]))
@@ -93,25 +81,22 @@ def get_full_dataset(hdf5_file):
             else:
                 value = composition[element]["AtomPercent"]
 
-            if element_key not in data:
+            if element_key not in data and not math.isnan(value):
                 data[element_key] = xr.DataArray(
                     np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
                 )
-            else:
-                # value = composition[element]["AtomPercent"]
+            if element_key in data:
                 data[element_key].loc[{"y": y, "x": x}] = value
-
-    print(data)
 
     # Looking for MOKE positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="MOKE")
-    print(positions)
 
     # Retrieve Coercivity (from MOKE results)
     for x, y, nb_scan in positions:
         moke_group_path = make_group_path(["MOKE", nb_scan, "Results"])
-        print(moke_group_path)
-        coercivity_value = dr.get_moke_results(
+        # print(moke_group_path)
+        # get_moke_result doesnt do anything yet
+        coercivity_value = get_moke_results(
             hdf5_file, moke_group_path, result_type="Coercivity"
         )
 
@@ -119,24 +104,54 @@ def get_full_dataset(hdf5_file):
             data["Coercivity"] = xr.DataArray(
                 np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
             )
-        data["Coercivity"].loc[{"y": y, "x": x}] = coercivity_value[1]
+        # data["Coercivity"].loc[{"y": y, "x": x}] = coercivity_value[1]
+
+    # Looking for MOKE positions and scan numbers
+    positions = _get_all_positions(hdf5_file, data_type="XRD")
 
     # Retrieve Lattice Parameter (from XRD results)
-    for x, y in positions:
-        xrd_group_path = dr.make_group_path(["XRD", str(x), str(y), "Results"])
-        lattice_param = dr.get_xrd_results(
-            hdf5_file, xrd_group_path, result_type="Phases"
-        )
+    for x, y, nb_scan in positions:
+        xrd_group_path = make_group_path(["XRD", nb_scan, "Results"])
+        # print(xrd_group_path)
+        xrd_phases = get_xrd_results(hdf5_file, xrd_group_path, result_type="Phases")
 
-        value_str = lattice_param[0][1][0].decode("utf-8").split("+-")[0]
+        # Looking for the lattice parameters among all the phases attributs
+        for phase in xrd_phases.keys():
+            lattice_a = np.nan
+            lattice_b = np.nan
+            lattice_c = np.nan
+            lattice_a_label = f"{phase} Lattice Parameter A"
+            lattice_b_label = f"{phase} Lattice Parameter B"
+            lattice_c_label = f"{phase} Lattice Parameter C"
+            phase_keys = xrd_phases[phase].keys()
 
-        # Step 2: Convert to float
-        value_float = float(value_str)
+            if "A" in phase_keys:
+                a_str = str(xrd_phases[phase]["A"])
+                if not "UNDEF'" in a_str:
+                    lattice_a = a_str.split("+-")[0].replace("b'", "")
+                    lattice_a = float(lattice_a)
+            if "B" in phase_keys:
+                b_str = str(xrd_phases[phase]["B"])
+                if not "UNDEF'" in b_str:
+                    lattice_b = b_str.split("+-")[0].replace("b'", "")
+                    lattice_b = float(lattice_b)
+            if "C" in phase_keys:
+                c_str = str(xrd_phases[phase]["C"])
+                if not "UNDEF'" in c_str:
+                    lattice_c = c_str.split("+-")[0].replace("b'", "")
+                    lattice_c = float(lattice_c)
 
-        if "Lattice_Parameter" not in data:
-            data["Lattice_Parameter"] = xr.DataArray(
-                np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
-            )
-        data["Lattice_Parameter"].loc[{"y": y, "x": x}] = value_float
+            # Adding all the lattice parameters to the dataset
+            lattice_labels = [lattice_a_label, lattice_b_label, lattice_c_label]
+            lattice_values = [lattice_a, lattice_b, lattice_c]
+
+            for i in range(len(lattice_labels)):
+                # Test if all lattice values are not np.nan (if there is no B values we do not create the corresponding array)
+                if lattice_labels[i] not in data and not math.isnan(lattice_values[i]):
+                    data[lattice_labels[i]] = xr.DataArray(
+                        np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
+                    )
+                if lattice_labels[i] in data:
+                    data[lattice_labels[i]].loc[{"y": y, "x": x}] = lattice_values[i]
 
     return data

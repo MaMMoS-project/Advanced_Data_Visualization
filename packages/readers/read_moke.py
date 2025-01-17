@@ -25,7 +25,7 @@ def get_moke_results(hdf5_file, group_path, result_type=None):
         List containing result_type group, or all is result_type was not specified
     """
 
-    results_moke = []
+    results_moke = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
             keys = h5f[group_path].keys()
