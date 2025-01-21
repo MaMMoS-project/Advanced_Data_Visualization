@@ -59,7 +59,7 @@ def make_group_path(widget_values):
 
 
 # Construct the xarray Dataset with composition, coercivity, and lattice parameter
-def get_full_dataset(hdf5_file):
+def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
     # Looking for EDX positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="EDX")
 
@@ -70,6 +70,8 @@ def get_full_dataset(hdf5_file):
 
     # Retrieve EDX composition
     for x, y, nb_scan in positions:
+        if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
+            continue
         edx_group_path = make_group_path(["EDX", nb_scan, "Results"])
         composition = get_edx_composition(hdf5_file, edx_group_path)
 
@@ -93,24 +95,27 @@ def get_full_dataset(hdf5_file):
 
     # Retrieve Coercivity (from MOKE results)
     for x, y, nb_scan in positions:
+        if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
+            continue
         moke_group_path = make_group_path(["MOKE", nb_scan, "Results"])
-        # print(moke_group_path)
-        # get_moke_result doesnt do anything yet
         coercivity_value = get_moke_results(
             hdf5_file, moke_group_path, result_type="Coercivity"
         )
-
         if "Coercivity" not in data:
             data["Coercivity"] = xr.DataArray(
                 np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
             )
-        # data["Coercivity"].loc[{"y": y, "x": x}] = coercivity_value[1]
+        # print(type(coercivity_value))
+        if isinstance(coercivity_value, float):
+            data["Coercivity"].loc[{"y": y, "x": x}] = coercivity_value
 
-    # Looking for MOKE positions and scan numbers
+    # Looking for XRD positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="XRD")
 
     # Retrieve Lattice Parameter (from XRD results)
     for x, y, nb_scan in positions:
+        if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
+            continue
         xrd_group_path = make_group_path(["XRD", nb_scan, "Results"])
         # print(xrd_group_path)
         xrd_phases = get_xrd_results(hdf5_file, xrd_group_path, result_type="Phases")

@@ -6,6 +6,7 @@ to complete
 """
 
 import h5py
+import os
 import numpy as np
 from packages.compilers.compile_hdf5 import convertFloat
 
@@ -100,10 +101,12 @@ def read_data_from_moke(filepath):
         A tuple containing three lists: magnetization data, pulse data, and sum data. Each list contains the data of the corresponding file.
     """
     mag_data, pul_data, sum_data = [], [], []
+    loop_data = []
 
     mag_path = filepath
     pul_path = filepath.parent / f"{filepath.name.replace('magnetization', 'pulse')}"
     sum_path = filepath.parent / f"{filepath.name.replace('magnetization', 'sum')}"
+    loop_path = filepath.parent / f"{filepath.name.replace('magnetization', 'loop')}"
 
     with open(mag_path, "r") as magnetization, open(pul_path, "r") as pulse, open(
         sum_path, "r"
@@ -122,7 +125,14 @@ def read_data_from_moke(filepath):
             pul_data.append([float(elm) for elm in pul])
             sum_data.append([float(elm) for elm in sum])
 
-    return mag_data, pul_data, sum_data
+    # Reading the loop MOKE file
+    with open(loop_path, "r") as loop:
+        loop = loop.readlines()
+        for line in loop[2:]:
+            loop_line = line.strip().split()
+            loop_data.append([float(elm) for elm in loop_line])
+
+    return mag_data, pul_data, sum_data, loop_data
 
 
 def get_time_from_moke(datasize):
@@ -146,8 +156,25 @@ def get_time_from_moke(datasize):
     return time
 
 
-def get_results_from_moke(filepath):
+def get_results_from_moke(filepath, x_pos_wafer, y_pos_wafer):
     results_dict = {}
+    result_path = None
+    for file in os.listdir(filepath.parent):
+        if file.endswith("MOKE.dat"):
+            result_path = filepath.parent / file
+            break
+
+    if result_path is None:
+        return results_dict
+    else:
+        with open(result_path, "r") as file:
+            file.readline()
+            for line in file:
+                x, y, coercivity, reflectivity = line.strip().split()
+                if float(x) == float(x_pos_wafer) and float(y) == float(y_pos_wafer):
+                    results_dict["coercivity"] = round(float(coercivity), 2)
+                    results_dict["reflectivity"] = round(float(reflectivity), 2)
+                    break
 
     return results_dict
 
@@ -187,11 +214,11 @@ def write_moke_to_hdf5(HDF5_path, filepath, mode="a"):
     x_pos, y_pos = get_wafer_positions(filepath)
 
     header_dict = read_header_from_moke(filepath)
-    mag_dict, pul_dict, sum_dict = read_data_from_moke(filepath)
+    mag_dict, pul_dict, sum_dict, loop_dict = read_data_from_moke(filepath)
     time_dict = get_time_from_moke(len(mag_dict))
     nb_aquisitions = len(mag_dict[0])
 
-    results_dict = get_results_from_moke(filepath)
+    results_dict = get_results_from_moke(filepath, x_pos, y_pos)
 
     with h5py.File(HDF5_path, mode) as f:
         scan_group = f"/entry/moke/scan_{scan_number}/"
@@ -234,3 +261,22 @@ def write_moke_to_hdf5(HDF5_path, filepath, mode="a"):
         results = scan.create_group("results")
         results.attrs["NX_class"] = "HTresults"
         set_instrument_from_dict(results_dict, results)
+        for key in results.keys():
+            if key == "coercivity":
+                results[key].attrs["units"] = "T"
+            elif key == "reflectivity":
+                results[key].attrs["units"] = "V"
+
+        applied_field = []
+        magnetization = []
+        for field, mag in loop_dict:
+            applied_field.append(float(field))
+            magnetization.append(float(mag))
+        applied_field = results.create_dataset(
+            "applied field", data=applied_field, dtype="float"
+        )
+        magnetization = results.create_dataset(
+            "magnetization", data=magnetization, dtype="float"
+        )
+        applied_field.attrs["units"] = "T"
+        magnetization.attrs["units"] = "V"

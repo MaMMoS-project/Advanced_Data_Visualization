@@ -9,37 +9,41 @@ import h5py
 
 def get_moke_results(hdf5_file, group_path, result_type=None):
     """
-    Read the MOKE results inside a hdf5 datafile, result_type can be 'Coercivity' or 'Reflectivity'
+    Reads the results of a MOKE measurement from an HDF5 file.
 
     Parameters
     ----------
-    hdf5_file : STR or pathlib.Path
-        Full path to the hdf5 file containing the data to be extracted.
-    group_path : STR or pathlib.Path
-        Path WITHIN the hdf5 file to the group where the metadata is located,
-        e.g. "./EDX/Spectrum_(20, -30)".
+    hdf5_file : str or Path
+        The path to the HDF5 file to read the data from.
+    group_path : str or Path
+        The path within the HDF5 file to the group containing the MOKE data.
+    result_type : str, optional
+        The type of result to retrieve. If None, all results are returned. Defaults to None.
 
     Returns
     -------
-    results_moke : numpy.array
-        List containing result_type group, or all is result_type was not specified
+    dict
+        A dictionary containing the results of the MOKE measurement. If result_type is specified,
+        the function returns the value of the corresponding key in the dictionary.
+        If the key is not found, the function returns 1.
     """
-
     results_moke = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
-            keys = h5f[group_path].keys()
-            for key in keys:
-                dataset = h5f[f"{group_path}/{key}"]
-                if result_type is None:
-                    results_moke.append([key, dataset[()][0]])
-                elif result_type.lower() in key.lower():
-                    return [key, dataset[()][0]]
-                else:
-                    print("Warning, result type was not found.")
-                    return 1
+            node = h5f[group_path]
+            for key in node.keys():
+                if isinstance(node[key], h5py.Dataset):
+                    if node[key].shape == ():
+                        results_moke[key] = float(node[key][()])
+                    else:
+                        results_moke[key] = node[key][()]
+
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
+
+    if result_type is not None:
+        if result_type.lower() in results_moke.keys():
+            return results_moke[result_type.lower()]
 
     return results_moke

@@ -1,6 +1,8 @@
 h5py
 pathlib
-xml
+xml-python
 tqdm
 ipykernel
 fabio
+matplotlib
+xarray
