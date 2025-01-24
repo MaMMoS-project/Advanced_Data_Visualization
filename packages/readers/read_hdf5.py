@@ -10,9 +10,9 @@ import h5py
 import math
 import xarray as xr
 import numpy as np
-from packages.readers.read_edx import get_edx_composition
-from packages.readers.read_moke import get_moke_results
-from packages.readers.read_xrd import get_xrd_results
+from packages.readers.read_edx import get_edx_composition, get_edx_spectrum
+from packages.readers.read_moke import get_moke_results, get_moke_loop
+from packages.readers.read_xrd import get_xrd_results, get_xrd_pattern
 
 
 def _get_all_positions(hdf5_file, data_type: str):
@@ -160,3 +160,117 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                     data[lattice_labels[i]].loc[{"y": y, "x": x}] = lattice_values[i]
 
     return data
+
+
+def search_measurement_data_from_type(hdf5_file, data_type, nb_scan):
+    group_path = make_group_path([data_type, nb_scan, "Measurement"])
+
+    if data_type.lower() == "edx":
+        data = get_edx_spectrum(hdf5_file, group_path)
+    elif data_type.lower() == "moke":
+        group_path = make_group_path([data_type, nb_scan, "Results"])
+        data = get_moke_loop(hdf5_file, group_path)
+    elif data_type.lower() == "xrd":
+        data = get_xrd_pattern(hdf5_file, group_path)
+
+    return data
+
+
+def newDataArray(x_vals, y_vals):
+    return xr.DataArray(np.nan, coords=[y_vals, x_vals], dims=["y", "x"])
+
+
+def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
+    if data_type.lower() == "edx":
+        if data_type.lower() not in dataset:
+            dataset["Spectrum"] = xr.DataArray(
+                np.nan,
+                coords=[y_vals, x_vals, measurement["energy"]],
+                dims=["y", "x", "energy"],
+            )
+        dataset["Spectrum"].loc[{"y": y, "x": x, "energy": measurement["energy"]}] = (
+            measurement["counts"]
+        )
+
+    if data_type.lower() == "moke":
+        n_indexes = range(len(measurement["applied field"]))
+
+        if data_type.lower() not in dataset:
+            dataset["Loops"] = xr.DataArray(
+                np.nan,
+                coords=[y_vals, x_vals, ["magnetization", "applied field"], n_indexes],
+                dims=["y", "x", "index_value", "n_indexes"],
+            )
+
+        dataset["Loops"].loc[
+            {"y": y, "x": x, "index_value": "magnetization", "n_indexes": n_indexes}
+        ] = measurement["magnetization"]
+        dataset["Loops"].loc[
+            {"y": y, "x": x, "index_value": "applied field", "n_indexes": n_indexes}
+        ] = measurement["applied field"]
+
+    if data_type.lower() == "xrd":
+        if data_type.lower() not in dataset:
+            dataset["Counts"] = xr.DataArray(
+                np.nan,
+                coords=[y_vals, x_vals, measurement["angle"]],
+                dims=["y", "x", "angle"],
+            )
+        dataset["Counts"].loc[{"y": y, "x": x, "angle": measurement["angle"]}] = (
+            measurement["counts"]
+        )
+
+    return None
+
+
+def get_current_dataset(data_type, dataset_edx, dataset_moke, dataset_xrd):
+    if data_type.lower() == "edx":
+        current_dataset = dataset_edx
+    elif data_type.lower() == "moke":
+        current_dataset = dataset_moke
+    elif data_type.lower() == "xrd":
+        current_dataset = dataset_xrd
+
+    return current_dataset
+
+
+def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
+    # Check if data_type is valid
+    if data_type.lower() == "all":
+        datatypes = ["EDX", "MOKE", "XRD"]
+
+    elif not data_type.lower() in ["edx", "moke", "xrd"]:
+        print("data_type must be one of 'EDX', 'MOKE', 'XRD' or 'all'.")
+        return 1
+    else:
+        datatypes = [data_type]
+
+    measurement_tree = xr.DataTree(name="Measurement Data")
+    dataset_edx = xr.Dataset()
+    dataset_moke = xr.Dataset()
+    dataset_xrd = xr.Dataset()
+
+    for data_type in datatypes:
+        positions = _get_all_positions(hdf5_file, data_type=data_type)
+        x_vals = sorted(set([pos[0] for pos in positions]))
+        y_vals = sorted(set([pos[1] for pos in positions]))
+
+        for x, y, nb_scan in positions:
+            if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
+                continue
+            measurement = search_measurement_data_from_type(
+                hdf5_file, data_type, nb_scan
+            )
+            current_dataset = get_current_dataset(
+                data_type, dataset_edx, dataset_moke, dataset_xrd
+            )
+
+            add_measurement_data(
+                current_dataset, measurement, data_type, x, y, x_vals, y_vals
+            )
+
+    measurement_tree["EDX"] = dataset_edx
+    measurement_tree["MOKE"] = dataset_moke
+    measurement_tree["XRD"] = dataset_xrd
+
+    return measurement_tree

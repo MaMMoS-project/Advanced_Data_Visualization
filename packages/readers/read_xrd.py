@@ -61,3 +61,17 @@ def get_xrd_results(hdf5_file, group_path, result_type):
         return 1
 
     return parent_attrs
+
+
+def get_xrd_pattern(hdf5_file, group_path):
+
+    measurement = {}
+    try:
+        with h5py.File(hdf5_file, "r") as h5f:
+            measurement["counts"] = h5f[group_path]["counts"][()]
+            measurement["angle"] = h5f[group_path]["angle"][()]
+    except KeyError:
+        print("Warning, group path not found in hdf5 file.")
+        return 1
+
+    return measurement

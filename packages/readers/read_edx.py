@@ -47,3 +47,34 @@ def get_edx_composition(hdf5_file, group_path):
         return 1
 
     return composition
+
+
+def get_edx_spectrum(hdf5_file, group_path):
+    """
+    Reads the EDX spectrum data from an HDF5 file.
+
+    Parameters
+    ----------
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file to read the data from.
+    group_path : str or pathlib.Path
+        The path within the HDF5 file to the group containing the EDX spectrum data.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the EDX spectrum data with keys 'counts' and 'energy'.
+        The 'counts' key contains the first 2048 data points of the counts dataset, while
+        the 'energy' key contains the energy dataset.
+    """
+
+    measurement = {}
+    try:
+        with h5py.File(hdf5_file, "r") as h5f:
+            measurement["counts"] = h5f[group_path]["counts"][()][:2048]
+            measurement["energy"] = h5f[group_path]["energy"][()]
+    except KeyError:
+        print("Warning, group path not found in hdf5 file.")
+        return 1
+
+    return measurement

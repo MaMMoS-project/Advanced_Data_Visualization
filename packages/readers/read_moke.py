@@ -47,3 +47,31 @@ def get_moke_results(hdf5_file, group_path, result_type=None):
             return results_moke[result_type.lower()]
 
     return results_moke
+
+
+def get_moke_loop(hdf5_file, group_path):
+    """
+    Reads the MOKE loop data from an HDF5 file.
+
+    Parameters
+    ----------
+    hdf5_file : str or Path
+        The path to the HDF5 file to read the data from.
+    group_path : str or Path
+        The path within the HDF5 file to the group containing the MOKE loop data.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the MOKE loop data with keys 'applied_field' and 'magnetization'.
+    """
+    measurement = {}
+    try:
+        with h5py.File(hdf5_file, "r") as h5f:
+            measurement["applied field"] = h5f[group_path]["applied field"][()]
+            measurement["magnetization"] = h5f[group_path]["magnetization"][()]
+    except KeyError:
+        print("Warning, group path not found in hdf5 file.")
+        return 1
+
+    return measurement
