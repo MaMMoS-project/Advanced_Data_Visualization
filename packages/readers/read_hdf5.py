@@ -98,9 +98,10 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
         if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
             continue
         moke_group_path = make_group_path(["MOKE", nb_scan, "Results"])
-        coercivity_value = get_moke_results(
+        coercivity_value, moke_units = get_moke_results(
             hdf5_file, moke_group_path, result_type="Coercivity"
         )
+
         if "Coercivity" not in data:
             data["Coercivity"] = xr.DataArray(
                 np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
@@ -108,6 +109,8 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
         # print(type(coercivity_value))
         if isinstance(coercivity_value, float):
             data["Coercivity"].loc[{"y": y, "x": x}] = coercivity_value
+        if isinstance(moke_units, str):
+            data["Coercivity"].attrs["units"] = moke_units
 
     # Looking for XRD positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="XRD")
