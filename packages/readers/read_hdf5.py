@@ -182,7 +182,7 @@ def newDataArray(x_vals, y_vals):
 
 def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
     if data_type.lower() == "edx":
-        if data_type.lower() not in dataset:
+        if "Spectrum" not in dataset:
             dataset["Spectrum"] = xr.DataArray(
                 np.nan,
                 coords=[y_vals, x_vals, measurement["energy"]],
@@ -195,7 +195,7 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
     if data_type.lower() == "moke":
         n_indexes = range(len(measurement["applied field"]))
 
-        if data_type.lower() not in dataset:
+        if "Loops" not in dataset:
             dataset["Loops"] = xr.DataArray(
                 np.nan,
                 coords=[y_vals, x_vals, ["magnetization", "applied field"], n_indexes],
@@ -210,7 +210,7 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
         ] = measurement["applied field"]
 
     if data_type.lower() == "xrd":
-        if data_type.lower() not in dataset:
+        if "Counts" not in dataset:
             dataset["Counts"] = xr.DataArray(
                 np.nan,
                 coords=[y_vals, x_vals, measurement["angle"]],
