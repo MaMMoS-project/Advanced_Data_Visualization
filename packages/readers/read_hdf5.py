@@ -16,6 +16,22 @@ from packages.readers.read_xrd import get_xrd_results, get_xrd_pattern
 
 
 def _get_all_positions(hdf5_file, data_type: str):
+    """
+    Retrieves all unique positions and associated scan numbers from an HDF5 file.
+
+    Parameters
+    ----------
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file to read the data from.
+    data_type : str
+        The type of data to retrieve positions for, corresponds to a subgroup under 'entry'.
+
+    Returns
+    -------
+    list of tuples
+        A sorted list of unique tuples, each containing the x position, y position, and scan number.
+    """
+
     positions = []
 
     with h5py.File(hdf5_file, "r") as h5f:
@@ -34,6 +50,21 @@ def _get_all_positions(hdf5_file, data_type: str):
 
 
 def _get_position_units(hdf5_file, data_type: str):
+    """
+    Reads the units of the x and y positions from the HDF5 file.
+
+    Parameters
+    ----------
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file to read the data from.
+    data_type : str
+        The type of data to read, either 'EDX', 'MOKE' or 'XRD'.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the units for the x and y positions.
+    """
     position_units = {}
 
     with h5py.File(hdf5_file, "r") as h5f:
@@ -76,6 +107,21 @@ def make_group_path(widget_values):
 
 # Construct the xarray Dataset with composition, coercivity, and lattice parameter
 def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
+    """
+    Construct the xarray Dataset with composition, coercivity, and lattice parameter.
+
+    Parameters
+    ----------
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file to read the data from.
+    exclude_wafer_edges : bool, default=True
+        If True, exclude the positions at the edges of the wafer (i.e. at x=+/-40 and y=+/-40).
+
+    Returns
+    -------
+    data : xarray.Dataset
+        An xarray Dataset containing the composition, coercivity and lattice parameters of the samples at each position.
+    """
     # Looking for EDX positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="EDX")
     position_units = _get_position_units(hdf5_file, data_type="EDX")
@@ -201,32 +247,93 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
 
 
 def search_measurement_data_from_type(hdf5_file, data_type, nb_scan):
+    """
+    Search for measurement data of a given type and scan number in a HDF5 file.
+
+    Parameters
+    ----------
+    hdf5_file : str
+        Path to the HDF5 file
+    data_type : str
+        Type of measurement data to search for. Can be "EDX", "MOKE" or "XRD".
+    nb_scan : int
+        Number of the scan to search for
+
+    Returns
+    -------
+    data : xarray.DataArray
+        The measurement data
+    data_units : dict
+        A dictionary with the units of each dimension of the data
+
+    Notes
+    -----
+    The group path is built using the data_type and nb_scan values. For EDX and XRD, the group path is
+    "<data_type>/<nb_scan>/Measurement". For MOKE, the group path is "<data_type>/<nb_scan>/Results".
+    """
     group_path = make_group_path([data_type, nb_scan, "Measurement"])
 
     if data_type.lower() == "edx":
-        data = get_edx_spectrum(hdf5_file, group_path)
+        data, data_units = get_edx_spectrum(hdf5_file, group_path)
     elif data_type.lower() == "moke":
         group_path = make_group_path([data_type, nb_scan, "Results"])
-        data = get_moke_loop(hdf5_file, group_path)
+        data, data_units = get_moke_loop(hdf5_file, group_path)
     elif data_type.lower() == "xrd":
-        data = get_xrd_pattern(hdf5_file, group_path)
+        data, data_units = get_xrd_pattern(hdf5_file, group_path)
 
-    return data
+    return data, data_units
 
 
 def newDataArray(x_vals, y_vals):
+    """
+    Create a new DataArray with NaN values for the given x and y coordinates.
+
+    Parameters
+    ----------
+    x_vals, y_vals : array-like
+        The x coordinates and y coordinates
+
+    Returns
+    -------
+    xr.DataArray
+        The new DataArray with NaN values
+    """
     return xr.DataArray(np.nan, coords=[y_vals, x_vals], dims=["y", "x"])
 
 
 def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
+    """
+    Add measurement data to the given dataset.
+
+    Parameters
+    ----------
+    dataset : xarray.Dataset
+        The dataset to which the measurement data should be added.
+    measurement : dict
+        A dictionary containing the measurement data.
+    data_type : str
+        The type of the measurement data (e.g. "edx", "moke", "xrd").
+    x : int
+        The x position of the measurement.
+    y : int
+        The y position of the measurement.
+    x_vals : list
+        A list of all x values in the dataset.
+    y_vals : list
+        A list of all y values in the dataset.
+
+    Returns
+    -------
+    None
+    """
     if data_type.lower() == "edx":
-        if "Spectrum" not in dataset:
-            dataset["Spectrum"] = xr.DataArray(
+        if "counts" not in dataset:
+            dataset["counts"] = xr.DataArray(
                 np.nan,
                 coords=[y_vals, x_vals, measurement["energy"]],
                 dims=["y", "x", "energy"],
             )
-        dataset["Spectrum"].loc[{"y": y, "x": x, "energy": measurement["energy"]}] = (
+        dataset["counts"].loc[{"y": y, "x": x, "energy": measurement["energy"]}] = (
             measurement["counts"]
         )
 
@@ -248,13 +355,13 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
         ] = measurement["applied field"]
 
     if data_type.lower() == "xrd":
-        if "Counts" not in dataset:
-            dataset["Counts"] = xr.DataArray(
+        if "counts" not in dataset:
+            dataset["counts"] = xr.DataArray(
                 np.nan,
                 coords=[y_vals, x_vals, measurement["angle"]],
                 dims=["y", "x", "angle"],
             )
-        dataset["Counts"].loc[{"y": y, "x": x, "angle": measurement["angle"]}] = (
+        dataset["counts"].loc[{"y": y, "x": x, "angle": measurement["angle"]}] = (
             measurement["counts"]
         )
 
@@ -262,6 +369,25 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
 
 
 def get_current_dataset(data_type, dataset_edx, dataset_moke, dataset_xrd):
+    """
+    Returns the current dataset for the given data_type from the three given datasets.
+
+    Parameters
+    ----------
+    data_type : str
+        The type of data to read. Must be one of 'EDX', 'MOKE', 'XRD' or 'all'.
+    dataset_edx : xarray.DataTree
+        The DataTree object containing the EDX data.
+    dataset_moke : xarray.DataTree
+        The DataTree object containing the MOKE data.
+    dataset_xrd : xarray.DataTree
+        The DataTree object containing the XRD data.
+
+    Returns
+    -------
+    xarray.DataTree
+        The DataTree object containing the data for the given data_type.
+    """
     if data_type.lower() == "edx":
         current_dataset = dataset_edx
     elif data_type.lower() == "moke":
@@ -273,6 +399,23 @@ def get_current_dataset(data_type, dataset_edx, dataset_moke, dataset_xrd):
 
 
 def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
+    """
+    Reads the measurement data from an HDF5 file and returns an xarray DataTree object containing all the scans of every experiment.
+
+    Parameters
+    ----------
+    hdf5_file : str or Path
+        The path to the HDF5 file to read the data from.
+    data_type : str
+        The type of data to read. Must be one of 'EDX', 'MOKE', 'XRD' or 'all'.
+    exclude_wafer_edges : bool, optional
+        If True, the function will exclude the data measured at the edges of the wafer from the returned DataTree. Defaults to True.
+
+    Returns
+    -------
+    xarray.DataTree
+        A DataTree object containing all the scans of every experiment. The DataTree has a name attribute set to "Measurement Data".
+    """
     # Check if data_type is valid
     if data_type.lower() == "all":
         datatypes = ["EDX", "MOKE", "XRD"]
@@ -296,7 +439,7 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
         for x, y, nb_scan in positions:
             if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
                 continue
-            measurement = search_measurement_data_from_type(
+            measurement, units = search_measurement_data_from_type(
                 hdf5_file, data_type, nb_scan
             )
             current_dataset = get_current_dataset(
@@ -306,6 +449,25 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
             add_measurement_data(
                 current_dataset, measurement, data_type, x, y, x_vals, y_vals
             )
+
+        # Add units for x, y positions for all datasets
+        position_units = _get_position_units(hdf5_file, data_type=data_type)
+        current_dataset["x"].attrs["units"] = position_units["x_pos"]
+        current_dataset["y"].attrs["units"] = position_units["y_pos"]
+
+        # Add units for scan axis in all datasets
+        # print(units.keys())
+        for key in units.keys():
+            if data_type.lower() != "moke":
+                if key in current_dataset:
+                    current_dataset[key].attrs["units"] = units[key]
+            else:
+                if (
+                    key in current_dataset["index_value"]
+                    and "units" not in current_dataset["Loops"].attrs
+                ):
+                    print(units[key])
+                    current_dataset["Loops"].attrs["units"] = units
 
     measurement_tree["EDX"] = dataset_edx
     measurement_tree["MOKE"] = dataset_moke

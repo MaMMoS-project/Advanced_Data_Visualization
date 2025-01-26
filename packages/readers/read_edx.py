@@ -76,12 +76,15 @@ def get_edx_spectrum(hdf5_file, group_path):
     """
 
     measurement = {}
+    measurement_units = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
             measurement["counts"] = h5f[group_path]["counts"][()][:2048]
             measurement["energy"] = h5f[group_path]["energy"][()]
+            measurement_units["counts"] = h5f[group_path]["counts"].attrs["units"]
+            measurement_units["energy"] = h5f[group_path]["energy"].attrs["units"]
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
 
-    return measurement
+    return measurement, measurement_units

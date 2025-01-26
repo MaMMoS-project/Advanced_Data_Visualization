@@ -74,12 +74,19 @@ def get_moke_loop(hdf5_file, group_path):
         A dictionary containing the MOKE loop data with keys 'applied_field' and 'magnetization'.
     """
     measurement = {}
+    measurement_units = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
             measurement["applied field"] = h5f[group_path]["applied field"][()]
             measurement["magnetization"] = h5f[group_path]["magnetization"][()]
+            measurement_units["applied field"] = h5f[group_path]["applied field"].attrs[
+                "units"
+            ]
+            measurement_units["magnetization"] = h5f[group_path]["magnetization"].attrs[
+                "units"
+            ]
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
 
-    return measurement
+    return measurement, measurement_units

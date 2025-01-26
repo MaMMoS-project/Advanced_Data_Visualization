@@ -97,6 +97,23 @@ def read_data_from_ras(filepath):
 
 
 def get_results_from_refinement(filepath):
+    """
+    Reads a .lst file and returns the following dictionaries:
+
+    r_coeffs: A dictionary containing the R-factors from the refinement.
+    global_params: A dictionary containing the global parameters from the refinement.
+    phases: A dictionary containing the parameters for each phase, including the atomic positions.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        The filepath to the .lst file
+
+    Returns
+    -------
+    tuple
+        A tuple containing the r_coeffs, global_params, and phases dictionaries
+    """
     fullpath = filepath.parent / filepath.name.replace(".ras", ".lst")
     attrib_list = [
         "SpacegroupNo=",
@@ -180,6 +197,20 @@ def set_instrument_and_result_from_dict(xrd_dict, node):
 
 
 def get_2dcamera_from_img(filepath):
+    """
+    Reads the header and data of a 2D detector image file and returns them as a tuple.
+
+    Parameters
+    ----------
+    filepath : pathlib.Path
+        The path to the .ras file of the XRD measurement.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the header and data of the 2D detector image, as read from the file.
+    """
+
     prefix = filepath.name.strip(".ras")
 
     for file in os.listdir(filepath.parent):

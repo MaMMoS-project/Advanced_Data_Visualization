@@ -73,14 +73,33 @@ def get_xrd_results(hdf5_file, group_path, result_type):
 
 
 def get_xrd_pattern(hdf5_file, group_path):
+    """
+    Reads the XRD pattern data from an HDF5 file.
 
+    Parameters
+    ----------
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file to read the data from.
+    group_path : str or pathlib.Path
+        The path within the HDF5 file to the group containing the XRD pattern data.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the XRD pattern data with keys 'counts' and 'angle'.
+        The 'counts' key contains the first 2048 data points of the counts dataset, while
+        the 'angle' key contains the angle dataset.
+    """
     measurement = {}
+    measurement_units = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
             measurement["counts"] = h5f[group_path]["counts"][()]
             measurement["angle"] = h5f[group_path]["angle"][()]
+            measurement_units["counts"] = h5f[group_path]["counts"].attrs["units"]
+            measurement_units["angle"] = h5f[group_path]["angle"].attrs["units"]
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
 
-    return measurement
+    return measurement, measurement_units

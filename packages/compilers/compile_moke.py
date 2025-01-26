@@ -157,6 +157,23 @@ def get_time_from_moke(datasize):
 
 
 def get_results_from_moke(filepath, x_pos_wafer, y_pos_wafer):
+    """
+    Reads the results of a MOKE measurement from a results file and returns the coercivity and reflectivity values for the given wafer positions.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        The filepath to the MOKE data file.
+    x_pos_wafer : int
+        The x position of the wafer.
+    y_pos_wafer : int
+        The y position of the wafer.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the coercivity and reflectivity values for the given wafer positions.
+    """
     results_dict = {}
     result_path = None
     for file in os.listdir(filepath.parent):
