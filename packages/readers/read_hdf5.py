@@ -21,15 +21,31 @@ def _get_all_positions(hdf5_file, data_type: str):
     with h5py.File(hdf5_file, "r") as h5f:
         root_group = f"./entry/{data_type.lower()}"
 
+        # Getting all the positions and the associated scan numbers
         for group in h5f[root_group].keys():
             instrument = h5f[f"{root_group}/{group}"]["instrument"]
-            x = instrument.attrs["x_pos"]
-            y = instrument.attrs["y_pos"]
+            x = instrument["x_pos"][()]
+            y = instrument["y_pos"][()]
             scan_number = group.split("_")[1]
 
             positions.append((x, y, scan_number))
 
     return sorted(set(positions))
+
+
+def _get_position_units(hdf5_file, data_type: str):
+    position_units = {}
+
+    with h5py.File(hdf5_file, "r") as h5f:
+        root_group = f"./entry/{data_type.lower()}"
+
+        # Getting the units for one scan
+        for group in h5f[root_group].keys():
+            instrument = h5f[f"{root_group}/{group}"]["instrument"]
+            position_units["x_pos"] = instrument["x_pos"].attrs["units"]
+            position_units["y_pos"] = instrument["y_pos"].attrs["units"]
+
+    return position_units
 
 
 def make_group_path(widget_values):
@@ -62,6 +78,7 @@ def make_group_path(widget_values):
 def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
     # Looking for EDX positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="EDX")
+    position_units = _get_position_units(hdf5_file, data_type="EDX")
 
     x_vals = sorted(set([pos[0] for pos in positions]))
     y_vals = sorted(set([pos[1] for pos in positions]))
@@ -73,7 +90,7 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
         if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
             continue
         edx_group_path = make_group_path(["EDX", nb_scan, "Results"])
-        composition = get_edx_composition(hdf5_file, edx_group_path)
+        composition, composition_units = get_edx_composition(hdf5_file, edx_group_path)
 
         for element in composition:
             elm_keys = composition[element].keys()
@@ -89,6 +106,12 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                 )
             if element_key in data:
                 data[element_key].loc[{"y": y, "x": x}] = value
+
+            # Getting the composition units in the xarray
+            if "AtomPercent" in composition_units[element].keys():
+                data[element_key].attrs["units"] = composition_units[element][
+                    "AtomPercent"
+                ]
 
     # Looking for MOKE positions and scan numbers
     positions = _get_all_positions(hdf5_file, data_type="MOKE")
@@ -106,7 +129,7 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
             data["Coercivity"] = xr.DataArray(
                 np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
             )
-        # print(type(coercivity_value))
+        # Setting the values for the coercivity in the xarray with the units
         if isinstance(coercivity_value, float):
             data["Coercivity"].loc[{"y": y, "x": x}] = coercivity_value
         if isinstance(moke_units, str):
@@ -121,7 +144,9 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
             continue
         xrd_group_path = make_group_path(["XRD", nb_scan, "Results"])
         # print(xrd_group_path)
-        xrd_phases = get_xrd_results(hdf5_file, xrd_group_path, result_type="Phases")
+        xrd_phases, xrd_units = get_xrd_results(
+            hdf5_file, xrd_group_path, result_type="Phases"
+        )
 
         # Looking for the lattice parameters among all the phases attributs
         for phase in xrd_phases.keys():
@@ -161,6 +186,16 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                     )
                 if lattice_labels[i] in data:
                     data[lattice_labels[i]].loc[{"y": y, "x": x}] = lattice_values[i]
+
+    # Getting the lattice units in the xarray
+    for phase in xrd_phases.keys():
+        for i, elm in enumerate(["A", "B", "C"]):
+            if elm in phase_keys and elm in xrd_units[phase]:
+                data[lattice_labels[i]].attrs["units"] = xrd_units[phase][elm]
+
+    # Setting the units for x_pos and y_pos
+    data["x"].attrs["units"] = position_units["x_pos"]
+    data["y"].attrs["units"] = position_units["y_pos"]
 
     return data
 

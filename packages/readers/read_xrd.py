@@ -13,10 +13,13 @@ def _get_attrs(name, obj):
     Disclaimer: functions starting with '_' are not made to be used by the user unless you know what you're doing
     """
     global attrs
+    global units
 
     if isinstance(obj, h5py.Dataset):
         dataset = obj[()]
         attrs[name] = dataset
+        if "units" in obj.attrs:
+            units[name] = obj.attrs["units"]
 
 
 def get_xrd_results(hdf5_file, group_path, result_type):
@@ -41,8 +44,12 @@ def get_xrd_results(hdf5_file, group_path, result_type):
     """
 
     global attrs
+    global units
     attrs = {}
+    units = {}
+
     parent_attrs = {}
+    xrd_units = {}
 
     try:
         with h5py.File(hdf5_file, "r") as h5f:
@@ -54,13 +61,15 @@ def get_xrd_results(hdf5_file, group_path, result_type):
                         result_group[elm].visititems(_get_attrs)
                         # Retrieve all the elements of the group and put them in the parent dictionary
                         parent_attrs[elm] = attrs
+                        xrd_units[elm] = units
                         attrs = {}
+                        units = {}
 
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
 
-    return parent_attrs
+    return parent_attrs, xrd_units
 
 
 def get_xrd_pattern(hdf5_file, group_path):

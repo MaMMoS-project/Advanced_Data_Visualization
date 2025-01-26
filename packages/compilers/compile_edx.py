@@ -199,7 +199,11 @@ def set_instrument_and_result_from_dict(edx_dict, instrument_group, result_group
 
             for subkey, subvalue in get_all_keys(value):
                 if subvalue is not None:
-                    instrument_subgroup[subkey] = convertFloat(subvalue)
+                    if subkey == "AtomPercent" or subkey == "MassPercent":
+                        # Convert values to .%
+                        instrument_subgroup[subkey] = convertFloat(subvalue) * 100
+                    else:
+                        instrument_subgroup[subkey] = convertFloat(subvalue)
                     if get_units(subkey) is not None:
                         instrument_subgroup[subkey].attrs["units"] = get_units(subkey)
 
@@ -253,16 +257,20 @@ def write_edx_to_hdf5(HDF5_path, filepath, mode="a"):
 
         instrument = scan.create_group("instrument")
         instrument.attrs["NX_class"] = "HTinstrument"
-        instrument.attrs["x_pos"] = wafer_positions[0]
-        instrument.attrs["y_pos"] = wafer_positions[1]
+
+        # Saving wafer positions with the units
+        instrument["x_pos"] = wafer_positions[0]
+        instrument["y_pos"] = wafer_positions[1]
+        instrument["x_pos"].attrs["units"] = "mm"
+        instrument["y_pos"].attrs["units"] = "mm"
+
+        results = scan.create_group("results")
+        results.attrs["NX_class"] = "HTresult"
+        set_instrument_and_result_from_dict(edx_dict, instrument, results)
 
         data = scan.create_group("measurement")
         data.attrs["NX_class"] = "HTdata"
 
-        results = scan.create_group("results")
-        results.attrs["NX_class"] = "HTresult"
-
-        set_instrument_and_result_from_dict(edx_dict, instrument, results)
         counts = data.create_dataset(
             "counts", (len(channels),), data=channels, dtype="int"
         )

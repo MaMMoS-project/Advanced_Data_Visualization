@@ -26,6 +26,8 @@ def get_edx_composition(hdf5_file, group_path):
         containing the keys 'Atom', 'Weight' and 'Z' with the corresponding values.
     """
     composition = {}
+    composition_units = {}
+
     try:
         with h5py.File(hdf5_file, "r") as h5f:
             # All the elements are stored in the results group
@@ -38,15 +40,20 @@ def get_edx_composition(hdf5_file, group_path):
                 # Initialization of the sub dictionary for each element
                 elm_name = element.split()[-1]
                 composition[elm_name] = {}
+                composition_units[elm_name] = {}
 
                 for key in elm_group.keys():
                     composition[elm_name][key] = elm_group[key][()]
+
+                    if "units" in elm_group[key].attrs.keys():
+                        composition_units[elm_name][key] = elm_group[key].attrs["units"]
+                # print(composition_units)
 
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
 
-    return composition
+    return composition, composition_units
 
 
 def get_edx_spectrum(hdf5_file, group_path):

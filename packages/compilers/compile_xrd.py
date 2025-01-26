@@ -161,11 +161,16 @@ def set_instrument_and_result_from_dict(xrd_dict, node):
     Returns:
         None
     """
+
     for key, value in xrd_dict.items():
         if isinstance(value, dict):
             set_instrument_and_result_from_dict(value, node.create_group(key))
         elif isinstance(value, str):
+            if key == "UNIT":
+                continue
             node[key] = value.replace('"', "")
+            if key in ["A", "B", "C"]:
+                node[key].attrs["units"] = "nm"
         elif isinstance(value, list):
             node.create_dataset(key, data=value)
         else:
@@ -216,8 +221,12 @@ def write_xrd_to_hdf5(HDF5_path, filepath, mode="a"):
         # Instrument group for metadata
         instrument = scan.create_group("instrument")
         instrument.attrs["NX_class"] = "HTinstrument"
-        instrument.attrs["x_pos"] = convertFloat(x_pos.replace('"', ""))
-        instrument.attrs["y_pos"] = convertFloat(y_pos.replace('"', ""))
+        instrument["x_pos"] = convertFloat(x_pos.replace('"', ""))
+        instrument["y_pos"] = convertFloat(y_pos.replace('"', ""))
+        instrument["x_pos"].attrs["units"] = "mm"
+        instrument["y_pos"].attrs["units"] = "mm"
+
+        # Separating the header into 4 groups for clarity
         disp, file, hw, meas = create_multiple_groups(
             instrument, ["disp", "file", "hardware", "meas"]
         )
