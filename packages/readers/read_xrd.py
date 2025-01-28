@@ -9,9 +9,22 @@ import h5py
 
 def _get_attrs(name, obj):
     """
-    Used for visit_items() to display all the subgroups and dataset
-    Disclaimer: functions starting with '_' are not made to be used by the user unless you know what you're doing
+    Extracts attributes from an HDF5 dataset object and stores them in global variables.
+
+    Parameters
+    ----------
+    name : str
+        Name of the HDF5 dataset, used as key for storing attributes.
+    obj : h5py.Dataset
+        HDF5 dataset object from which attributes are extracted.
+
+    Notes
+    -----
+    If `obj` is an instance of `h5py.Dataset`, its data is stored in the `attrs`
+    dictionary with `name` as the key. If the dataset has a "units" attribute,
+    it is also stored in the `units` dictionary.
     """
+
     global attrs
     global units
 
@@ -24,30 +37,34 @@ def _get_attrs(name, obj):
 
 def get_xrd_results(hdf5_file, group_path, result_type):
     """
-    Read the XRD results inside a hdf5 datafile, result_type has to be specified.
-    selected_result_type can be 'Phases', 'Global_Parameters' or 'R_coefficients'
+    Reads XRD results from an HDF5 file.
 
     Parameters
     ----------
-    hdf5_file : STR or pathlib.Path
-        Full path to the hdf5 file containing the data to be extracted.
-    group_path : STR or pathlib.Path
-        Path WITHIN the hdf5 file to the group where the metadata is located,
-        e.g. "./EDX/Spectrum_(20, -30)".
-    result_type : STR
-        values for result_type can be 'Phases', 'Global Parameters' or 'R coefficients'.
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file containing the data to be extracted.
+    group_path : str or pathlib.Path
+        The path within the HDF5 file to the group where the data is located.
+    result_type : str
+        The name of the result you want to retrieve. If the result is not found, the function returns 1.
 
     Returns
     -------
-    attrs : numpy.array
-        List containing xrd results, output will depend on result_type value
-    """
+    parent_attrs : dict
+        A dictionary containing the XRD results. The keys are the names of the results and the values are dictionaries with the keys "data" and "units".
+    xrd_units : dict
+        A dictionary containing the units of the XRD results. The keys are the names of the results and the values are the corresponding units.
 
+    Notes
+    -----
+    If the result is not found, the function returns 1.
+    """
     global attrs
     global units
     attrs = {}
     units = {}
 
+    # Nested dictionary for XRD results and units
     parent_attrs = {}
     xrd_units = {}
 
@@ -79,21 +96,27 @@ def get_xrd_pattern(hdf5_file, group_path):
     Parameters
     ----------
     hdf5_file : str or pathlib.Path
-        The path to the HDF5 file to read the data from.
+        The path to the HDF5 file containing the data to be extracted.
     group_path : str or pathlib.Path
         The path within the HDF5 file to the group containing the XRD pattern data.
 
     Returns
     -------
-    dict
+    measurement : dict
         A dictionary containing the XRD pattern data with keys 'counts' and 'angle'.
-        The 'counts' key contains the first 2048 data points of the counts dataset, while
-        the 'angle' key contains the angle dataset.
+    measurement_units : dict
+        A dictionary containing the units for the 'counts' and 'angle' datasets.
+
+    Notes
+    -----
+    If the group path is not found in the HDF5 file, the function returns 1.
     """
+
     measurement = {}
     measurement_units = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
+            # Getting counts and angle datasets (with corresponding units)
             measurement["counts"] = h5f[group_path]["counts"][()]
             measurement["angle"] = h5f[group_path]["angle"][()]
             measurement_units["counts"] = h5f[group_path]["counts"].attrs["units"]

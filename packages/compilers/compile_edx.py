@@ -42,6 +42,7 @@ def visit_items(item, edx_dict={}):
         "WindowLayers",
     ]
 
+    # Extract the name of the parent element
     if item.tag == "ClassInstance" and item.attrib["Type"] == "TRTPSEElement":
         parent_name = item.attrib["Type"] + " " + item.attrib["Name"]
     elif item.tag == "Result" or item.tag == "ExtResults":
@@ -53,6 +54,7 @@ def visit_items(item, edx_dict={}):
     else:
         parent_name = item.tag
 
+    # Builds a nested dictionary with all the edx metadata
     edx_dict.update({parent_name: {}})
     for child in item:
         if child.tag in parse_ignore:
@@ -60,6 +62,7 @@ def visit_items(item, edx_dict={}):
         elif child.findall("./") == []:
             edx_dict[parent_name][child.tag] = child.text
         else:
+            # Recursively visit the child elements
             edx_dict = visit_items(child, edx_dict)
 
     return edx_dict
@@ -147,6 +150,19 @@ def get_wafer_positions(scan_numbers, step_x=5, step_y=5, start_x=-40, start_y=-
 
 
 def get_units(key):
+    """
+    Returns the unit of measurement for a given key.
+
+    Parameters
+    ----------
+    key : str
+        The key to look up in the dictionary.
+
+    Returns
+    -------
+    str or None
+        The unit of measurement associated with the key, or None if key is not found in the dictionary.
+    """
     dict_units = {
         "PrimaryEnergy": "keV",
         "WorkingDistance": "mm",
@@ -190,6 +206,8 @@ def set_instrument_and_result_from_dict(edx_dict, instrument_group, result_group
                 result_group[new_key] = tmp_group
                 instrument_subgroup = result_group[new_key]
 
+                # Remove element from result group after name manipulation
+                # This has to be done to avoid duplicate in the hdf5 file
                 del result_group[f"Result {value["Element"]}"]
                 del instrument_subgroup["Atom"]
             else:
@@ -255,19 +273,21 @@ def write_edx_to_hdf5(HDF5_path, filepath, mode="a"):
         scan_group = f"/entry/edx/scan_{scan_numbers[0]},{scan_numbers[1]}/"
         scan = f.create_group(scan_group)
 
+        # Instrument group for metadata
         instrument = scan.create_group("instrument")
         instrument.attrs["NX_class"] = "HTinstrument"
 
-        # Saving wafer positions with the units
         instrument["x_pos"] = wafer_positions[0]
         instrument["y_pos"] = wafer_positions[1]
         instrument["x_pos"].attrs["units"] = "mm"
         instrument["y_pos"].attrs["units"] = "mm"
 
+        # Result group
         results = scan.create_group("results")
         results.attrs["NX_class"] = "HTresult"
         set_instrument_and_result_from_dict(edx_dict, instrument, results)
 
+        # Measurement group
         data = scan.create_group("measurement")
         data.attrs["NX_class"] = "HTdata"
 

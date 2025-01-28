@@ -10,23 +10,23 @@ import numpy as np
 
 def get_moke_results(hdf5_file, group_path, result_type=None):
     """
-    Reads the results of a MOKE measurement from an HDF5 file.
+    Reads the MOKE results from an HDF5 file.
 
     Parameters
     ----------
-    hdf5_file : str or Path
-        The path to the HDF5 file to read the data from.
-    group_path : str or Path
-        The path within the HDF5 file to the group containing the MOKE data.
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file containing the data to be extracted.
+    group_path : str or pathlib.Path
+        The path within the HDF5 file to the group where the data is located.
     result_type : str, optional
-        The type of result to retrieve. If None, all results are returned. Defaults to None.
+        The name of the result you want to retrieve. If None, the function will return a dictionary with all the results.
 
     Returns
     -------
-    dict
-        A dictionary containing the results of the MOKE measurement. If result_type is specified,
-        the function returns the value of the corresponding key in the dictionary.
-        If the key is not found, the function returns 1.
+    results_moke : dict
+        A dictionary containing the MOKE results. The keys are the names of the results and the values are the corresponding values.
+    units_results_moke : dict
+        A dictionary containing the units of the MOKE results. The keys are the names of the results and the values are the corresponding units.
     """
     results_moke = {}
     units_results_moke = {}
@@ -63,20 +63,24 @@ def get_moke_loop(hdf5_file, group_path):
 
     Parameters
     ----------
-    hdf5_file : str or Path
+    hdf5_file : str or pathlib.Path
         The path to the HDF5 file to read the data from.
-    group_path : str or Path
+    group_path : str or pathlib.Path
         The path within the HDF5 file to the group containing the MOKE loop data.
 
     Returns
     -------
-    dict
-        A dictionary containing the MOKE loop data with keys 'applied_field' and 'magnetization'.
+    measurement : dict
+        A dictionary containing the MOKE loop data with keys 'applied field' and 'magnetization'.
+    measurement_units : dict
+        A dictionary containing the units for the 'applied field' and 'magnetization' datasets.
     """
+
     measurement = {}
     measurement_units = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
+            # Getting applied_field and magnetization datasets (with corresponding units)
             measurement["applied field"] = h5f[group_path]["applied field"][()]
             measurement["magnetization"] = h5f[group_path]["magnetization"][()]
             measurement_units["applied field"] = h5f[group_path]["applied field"].attrs[

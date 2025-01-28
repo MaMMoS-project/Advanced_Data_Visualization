@@ -9,21 +9,23 @@ import h5py
 
 def get_edx_composition(hdf5_file, group_path):
     """
-    Reads the composition of an EDX scan from an HDF5 file.
+    Reads the composition from the EDX data in an HDF5 file
 
     Parameters
     ----------
-    hdf5_file : str or pathlib.Path
+    hdf5_file : str or Path
         The path to the HDF5 file to read the data from.
-    group_path : str or pathlib.Path
+    group_path : str or Path
         The path within the HDF5 file to the group containing the EDX data.
 
     Returns
     -------
-    composition : dict
-        A dictionary containing the composition of the sample for the given EDX scan.
-        The keys of the dictionary are the names of the elements and the values are dictionaries
-        containing the keys 'Atom', 'Weight' and 'Z' with the corresponding values.
+    dict
+        A dictionary containing the composition of the sample. Each key is an element
+        in the composition and the value is another dictionary containing the keys 'AtomPercent'
+        and 'MassPercent'.
+    dict
+        A dictionary containing the units for each element in the composition.
     """
     composition = {}
     composition_units = {}
@@ -69,16 +71,21 @@ def get_edx_spectrum(hdf5_file, group_path):
 
     Returns
     -------
-    dict
-        A dictionary containing the EDX spectrum data with keys 'counts' and 'energy'.
-        The 'counts' key contains the first 2048 data points of the counts dataset, while
-        the 'energy' key contains the energy dataset.
+    tuple
+        A tuple containing two dictionaries:
+        - measurement : dict
+            A dictionary containing the EDX spectrum data with keys 'counts' and 'energy'.
+            The 'counts' key contains the first 2048 data points of the counts dataset, while
+            the 'energy' key contains the energy dataset.
+        - measurement_units : dict
+            A dictionary containing the units for the 'counts' and 'energy' datasets.
     """
 
     measurement = {}
     measurement_units = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
+            # Getting counts and energy datasets (with corresponding units)
             measurement["counts"] = h5f[group_path]["counts"][()][:2048]
             measurement["energy"] = h5f[group_path]["energy"][()]
             measurement_units["counts"] = h5f[group_path]["counts"].attrs["units"]

@@ -108,6 +108,7 @@ def read_data_from_moke(filepath):
     sum_path = filepath.parent / f"{filepath.name.replace('magnetization', 'sum')}"
     loop_path = filepath.parent / f"{filepath.name.replace('magnetization', 'loop')}"
 
+    # Open the 4 datafiles at the same time and write everything in lists
     with open(mag_path, "r") as magnetization, open(pul_path, "r") as pulse, open(
         sum_path, "r"
     ) as reflectivity:
@@ -176,6 +177,7 @@ def get_results_from_moke(filepath, x_pos_wafer, y_pos_wafer):
     """
     results_dict = {}
     result_path = None
+    # Check if there is a results file
     for file in os.listdir(filepath.parent):
         if file.endswith("MOKE.dat"):
             result_path = filepath.parent / file

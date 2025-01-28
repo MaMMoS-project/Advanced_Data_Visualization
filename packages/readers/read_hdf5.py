@@ -105,7 +105,6 @@ def make_group_path(widget_values):
     return group_path
 
 
-# Construct the xarray Dataset with composition, coercivity, and lattice parameter
 def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
     """
     Construct the xarray Dataset with composition, coercivity, and lattice parameter.
@@ -327,12 +326,14 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
     None
     """
     if data_type.lower() == "edx":
+        # Generate a new DataArray the first time a new data type is encountered
         if "counts" not in dataset:
             dataset["counts"] = xr.DataArray(
                 np.nan,
                 coords=[y_vals, x_vals, measurement["energy"]],
                 dims=["y", "x", "energy"],
             )
+        # Add the measurement data point to the existing DataArray
         dataset["counts"].loc[{"y": y, "x": x, "energy": measurement["energy"]}] = (
             measurement["counts"]
         )
@@ -436,6 +437,7 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
         x_vals = sorted(set([pos[0] for pos in positions]))
         y_vals = sorted(set([pos[1] for pos in positions]))
 
+        # Add measurement data
         for x, y, nb_scan in positions:
             if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
                 continue
@@ -445,7 +447,6 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
             current_dataset = get_current_dataset(
                 data_type, dataset_edx, dataset_moke, dataset_xrd
             )
-
             add_measurement_data(
                 current_dataset, measurement, data_type, x, y, x_vals, y_vals
             )
@@ -456,7 +457,6 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
         current_dataset["y"].attrs["units"] = position_units["y_pos"]
 
         # Add units for scan axis in all datasets
-        # print(units.keys())
         for key in units.keys():
             if data_type.lower() != "moke":
                 if key in current_dataset:
@@ -469,6 +469,7 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
                     print(units[key])
                     current_dataset["Loops"].attrs["units"] = units
 
+    # Add datasets to the xarray DataTree
     measurement_tree["EDX"] = dataset_edx
     measurement_tree["MOKE"] = dataset_moke
     measurement_tree["XRD"] = dataset_xrd

@@ -67,6 +67,7 @@ def read_data_from_ras(filepath):
         meas_dict = {}
         data = []
 
+        # Split the header into different metadata types
         for line in f:
             if line.startswith("*"):
                 formatted_line = line.strip().split(" ", 1)
@@ -91,6 +92,7 @@ def read_data_from_ras(filepath):
                             meas_dict[key] = formatted_line[1]
 
             else:
+                # Read the data inside the file
                 data.append([[elm] for elm in line.strip().split(" ")])
 
         return disp_dict, file_dict, hw_dict, meas_dict, data
@@ -133,6 +135,7 @@ def get_results_from_refinement(filepath):
 
     with open(fullpath, "r") as file:
         for line in file:
+            # Parse the result file from the refinement
             if line.startswith("Rp="):
                 R_factors = line.split()
                 for elm in [elm.strip().split("=") for elm in R_factors]:
@@ -164,7 +167,6 @@ def get_results_from_refinement(filepath):
                     atomic_positions.append(new_line)
                 phases[current_phase]["Atomic positions"] = atomic_positions
 
-    # print(phases)
     return r_coeffs, global_params, phases
 
 
