@@ -1,4 +1,4 @@
-# Extract ESRF Data
+# Read HDF5 NEEL
 
 [William Rigaut](https://github.com/escouflenfer)<sup>1, 2</sup>
 
