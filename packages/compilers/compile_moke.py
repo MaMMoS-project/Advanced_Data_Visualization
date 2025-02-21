@@ -8,28 +8,28 @@ to complete
 import h5py
 import os
 import numpy as np
-from packages.compilers.compile_hdf5 import convertFloat
+from packages.compilers.compile_hdf5 import convertFloat, is_outside_wafer
 
 
-def get_scan_number(filepath):
+def get_scan_number(x_pos, y_pos):
     """
-    Returns the scan number from the given filepath.
-
-    The scan number is stored in the filename of the given filepath
-    as 'pN_X_Y_magnetization.txt', where N is the scan number, X and Y are
-    the wafer positions.
+    Returns the scan number given the x and y positions on the wafer.
 
     Parameters
     ----------
-    filepath : str
-        The filepath to the MOKE data file (.txt)
+    x_pos : int
+        The x position on the wafer.
+    y_pos : int
+        The y position on the wafer.
 
     Returns
     -------
     str
-        A string containing the scan number.
+        The scan number as a string.
     """
-    scan_number = filepath.name.split("_")[0].replace("p", "")
+    x_idx = ((float(x_pos)) + 40) / 5 + 1
+    y_idx = ((float(y_pos)) + 40) / 5 + 1
+    scan_number = f"{int(x_idx)},{int(y_idx)}"
 
     return scan_number
 
@@ -217,7 +217,32 @@ def set_instrument_from_dict(moke_dict, node):
     return None
 
 
-def write_moke_to_hdf5(HDF5_path, filepath, mode="a"):
+def get_avg_from_dicts(mag_dict, pul_dict, sum_dict):
+    """
+    Computes the average for each time step from the given magnetization, pulse, and sum data dictionaries.
+
+    Parameters
+    ----------
+    mag_dict : list of lists
+        A list where each element is a list of magnetization data values for a specific time step.
+    pul_dict : list of lists
+        A list where each element is a list of pulse data values for a specific time step.
+    sum_dict : list of lists
+        A list where each element is a list of sum data values for a specific time step.
+
+    Returns
+    -------
+    tuple
+        A tuple containing three lists: the average magnetization data, the average pulse data, and the average sum data, for each time step.
+    """
+    mag_avg = [np.mean(t) for t in mag_dict]
+    pul_avg = [np.mean(t) for t in pul_dict]
+    sum_avg = [np.mean(t) for t in sum_dict]
+
+    return mag_avg, pul_avg, sum_avg
+
+
+def write_moke_to_hdf5(HDF5_path, filepath, mode="a", exclude_wafer_edges=True):
     """
     Writes the contents of the MOKE data file (.txt) to the given HDF5 file.
 
@@ -229,8 +254,12 @@ def write_moke_to_hdf5(HDF5_path, filepath, mode="a"):
     Returns:
         None
     """
-    scan_number = get_scan_number(filepath)
     x_pos, y_pos = get_wafer_positions(filepath)
+    scan_number = get_scan_number(x_pos, y_pos)
+
+    # Remove points outside and very close to the edges
+    if is_outside_wafer(x_pos, y_pos) and exclude_wafer_edges:
+        return None
 
     header_dict = read_header_from_moke(filepath)
     mag_dict, pul_dict, sum_dict, loop_dict = read_data_from_moke(filepath)
@@ -254,29 +283,47 @@ def write_moke_to_hdf5(HDF5_path, filepath, mode="a"):
         set_instrument_from_dict(header_dict, instrument)
 
         # Data group
-        data = scan.create_group("measurement")
-        data.attrs["NX_class"] = "HTmeasurement"
+        measurement = scan.create_group("measurement")
+        measurement.attrs["NX_class"] = "HTmeasurement"
         time = [convertFloat(t) for t in time_dict]
+
+        # MOKE data usually has 4 acquisitions per scan
+        if nb_aquisitions > 1:
+            for i in range(nb_aquisitions):
+                data = measurement.create_group(f"measurement_{i+1}")
+
+                mag = [convertFloat(t[i]) for t in mag_dict]
+                mag_node = data.create_dataset("magnetization", data=mag, dtype="float")
+                mag_node.attrs["scan_number"] = f"{i+1}"
+
+                pul = [convertFloat(t[i]) for t in pul_dict]
+                pul_node = data.create_dataset("pulse", data=pul, dtype="float")
+                pul_node.attrs["scan_number"] = f"{i+1}"
+
+                sum = [convertFloat(t[i]) for t in sum_dict]
+                sum_node = data.create_dataset("reflectivity", data=sum, dtype="float")
+                sum_node.attrs["scan_number"] = f"{i+1}"
+
+                time_node = data.create_dataset("time", data=time, dtype="float")
+
+                mag_node.attrs["units"] = "V"
+                pul_node.attrs["units"] = "V"
+                sum_node.attrs["units"] = "V"
+                time_node.attrs["units"] = "μs"
+
+        # Adding the average of the acquisition for each scan (used to extract coercivity)
+        data = measurement.create_group(f"measurement_avg")
+        mag_avg, pul_avg, sum_avg = get_avg_from_dicts(mag_dict, pul_dict, sum_dict)
+
+        mag_node = data.create_dataset(f"magnetization", data=mag_avg, dtype="float")
+        pul_node = data.create_dataset(f"pulse", data=pul_avg, dtype="float")
+        sum_node = data.create_dataset(f"sum", data=sum_avg, dtype="float")
         time_node = data.create_dataset("time", data=time, dtype="float")
-        time_node.attrs["units"] = "μm"
 
-        for i in range(nb_aquisitions):
-            mag = [convertFloat(t[i]) for t in mag_dict]
-            mag_node = data.create_dataset(
-                f"magnetization_{i+1}", data=mag, dtype="float"
-            )
-
-            pul = [convertFloat(t[i]) for t in pul_dict]
-            pul_node = data.create_dataset(f"pulse_{i+1}", data=pul, dtype="float")
-
-            sum = [convertFloat(t[i]) for t in sum_dict]
-            sum_node = data.create_dataset(
-                f"reflectivity_{i+1}", data=sum, dtype="float"
-            )
-
-            mag_node.attrs["units"] = "V"
-            pul_node.attrs["units"] = "V"
-            sum_node.attrs["units"] = "V"
+        mag_node.attrs["units"] = "V"
+        pul_node.attrs["units"] = "V"
+        sum_node.attrs["units"] = "V"
+        time_node.attrs["units"] = "μs"
 
         # Results group
         results = scan.create_group("results")

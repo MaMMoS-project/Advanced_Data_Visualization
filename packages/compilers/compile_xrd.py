@@ -8,7 +8,11 @@ import h5py
 import os
 import numpy as np
 import fabio
-from packages.compilers.compile_hdf5 import convertFloat, create_multiple_groups
+from packages.compilers.compile_hdf5 import (
+    convertFloat,
+    is_outside_wafer,
+    create_multiple_groups,
+)
 
 
 def get_scan_numbers(filepath):
@@ -227,7 +231,7 @@ def get_2dcamera_from_img(filepath):
     return img_header, img_data
 
 
-def write_xrd_to_hdf5(HDF5_path, filepath, mode="a"):
+def write_xrd_to_hdf5(HDF5_path, filepath, mode="a", exclude_wafer_edges=True):
     """
     Writes the contents of the XRD data file (.ras) to the given HDF5 file.
 
@@ -241,7 +245,14 @@ def write_xrd_to_hdf5(HDF5_path, filepath, mode="a"):
     """
     scan_numbers = get_scan_numbers(filepath)
     disp_dict, file_dict, hw_dict, meas_dict, data_dict = read_data_from_ras(filepath)
-    x_pos, y_pos = meas_dict["COND_AXIS_POSITION-6"], meas_dict["COND_AXIS_POSITION-7"]
+    x_pos, y_pos = meas_dict["COND_AXIS_POSITION-6"].replace('"', ""), meas_dict[
+        "COND_AXIS_POSITION-7"
+    ].replace('"', "")
+
+    # Remove points outside and very close to the edges
+    if is_outside_wafer(x_pos, y_pos) and exclude_wafer_edges:
+        return None
+
     r_coeffs_dict, global_params_dict, phases_dict = get_results_from_refinement(
         filepath
     )
@@ -254,8 +265,8 @@ def write_xrd_to_hdf5(HDF5_path, filepath, mode="a"):
         # Instrument group for metadata
         instrument = scan.create_group("instrument")
         instrument.attrs["NX_class"] = "HTinstrument"
-        instrument["x_pos"] = convertFloat(x_pos.replace('"', ""))
-        instrument["y_pos"] = convertFloat(y_pos.replace('"', ""))
+        instrument["x_pos"] = convertFloat(x_pos)
+        instrument["y_pos"] = convertFloat(y_pos)
         instrument["x_pos"].attrs["units"] = "mm"
         instrument["y_pos"].attrs["units"] = "mm"
 

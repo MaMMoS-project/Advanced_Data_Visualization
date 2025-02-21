@@ -8,6 +8,7 @@ and manipulating HDF5 files for high-throughput experiment.
 
 from pathlib import Path
 import h5py
+import numpy as np
 
 
 def convertFloat(item):
@@ -27,6 +28,36 @@ def convertFloat(item):
         pass
 
     return item
+
+
+def is_outside_wafer(x_pos, y_pos):
+    """
+    Determines whether a position is outside the wafer boundary.
+
+    Evaluates the given x and y positions to determine if they fall
+    outside a defined boundary of the wafer. The boundary is based on
+    the sum of the absolute values of the positions and individual
+    threshold values.
+
+    Parameters
+    ----------
+    x_pos : int or float
+        The x position on the wafer.
+    y_pos : int or float
+        The y position on the wafer.
+
+    Returns
+    -------
+    bool
+        True if the position is outside the wafer boundary, False otherwise.
+    """
+    x_pos = int(float(x_pos))
+    y_pos = int(float(y_pos))
+
+    if np.abs(x_pos) + np.abs(y_pos) > 60 or np.abs(x_pos) > 40 or np.abs(y_pos) > 40:
+        return True
+
+    return False
 
 
 def get_all_keys(d):

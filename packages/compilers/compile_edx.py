@@ -11,7 +11,7 @@ import xml.etree.ElementTree as et
 import pathlib
 import h5py
 import numpy as np
-from packages.compilers.compile_hdf5 import get_all_keys, convertFloat
+from packages.compilers.compile_hdf5 import get_all_keys, convertFloat, is_outside_wafer
 
 
 def visit_items(item, edx_dict={}):
@@ -252,7 +252,7 @@ def make_energy_dataset(edx_dict, channels):
     return energy
 
 
-def write_edx_to_hdf5(HDF5_path, filepath, mode="a"):
+def write_edx_to_hdf5(HDF5_path, filepath, mode="a", exclude_wafer_edges=True):
     """
     Writes the contents of the EDX data file (.spx) to the given HDF5 file.
 
@@ -265,7 +265,12 @@ def write_edx_to_hdf5(HDF5_path, filepath, mode="a"):
         None
     """
     scan_numbers = get_scan_numbers(filepath)
-    wafer_positions = get_wafer_positions(scan_numbers)
+    x_pos, y_pos = get_wafer_positions(scan_numbers)
+
+    # Remove points outside and very close to the edges
+    if is_outside_wafer(x_pos, y_pos) and exclude_wafer_edges:
+        return None
+
     edx_dict, channels = read_data_from_spx(filepath)
     energy = make_energy_dataset(edx_dict, channels)
 
@@ -277,8 +282,8 @@ def write_edx_to_hdf5(HDF5_path, filepath, mode="a"):
         instrument = scan.create_group("instrument")
         instrument.attrs["NX_class"] = "HTinstrument"
 
-        instrument["x_pos"] = wafer_positions[0]
-        instrument["y_pos"] = wafer_positions[1]
+        instrument["x_pos"] = x_pos
+        instrument["y_pos"] = y_pos
         instrument["x_pos"].attrs["units"] = "mm"
         instrument["y_pos"].attrs["units"] = "mm"
 
