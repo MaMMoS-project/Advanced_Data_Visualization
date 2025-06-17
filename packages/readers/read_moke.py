@@ -35,13 +35,20 @@ def get_moke_results(hdf5_file, group_path, result_type=None):
         with h5py.File(hdf5_file, "r") as h5f:
             node = h5f[group_path]
             for key in node.keys():
-                if isinstance(node[key], h5py.Dataset):
-                    if node[key].shape == ():
-                        results_moke[key] = float(node[key][()])
-                    else:
-                        results_moke[key] = node[key][()]
-                    if "units" in node[key].attrs.keys():
-                        units_results_moke[key] = node[key].attrs["units"]
+                if isinstance(node[key], h5py.Group) and key != "parameters":
+                    results_moke[key] = node[key]["mean"][()]
+                    units_results_moke[key] = node[key]["mean"].attrs["units"]
+                elif isinstance(node[key], h5py.Dataset):
+                    results_moke[key] = node[key][()]
+                    units_results_moke[key] = node[key].attrs["units"]
+
+                # if isinstance(node[key], h5py.Dataset):
+                #     if node[key].shape == ():
+                #         results_moke[key] = float(node[key][()])
+                #     else:
+                #         results_moke[key] = node[key][()]
+                #     if "units" in node[key].attrs.keys():
+                #         units_results_moke[key] = node[key].attrs["units"]
 
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
@@ -80,15 +87,11 @@ def get_moke_loop(hdf5_file, group_path):
     measurement_units = {}
     try:
         with h5py.File(hdf5_file, "r") as h5f:
-            # Getting applied_field and magnetization datasets (with corresponding units)
-            measurement["applied field"] = h5f[group_path]["applied field"][()]
-            measurement["magnetization"] = h5f[group_path]["magnetization"][()]
-            measurement_units["applied field"] = h5f[group_path]["applied field"].attrs[
-                "units"
-            ]
-            measurement_units["magnetization"] = h5f[group_path]["magnetization"].attrs[
-                "units"
-            ]
+            node = h5f[group_path]["shot_mean"]
+            for key in node.keys():
+                measurement[key.replace("_mean", "")] = node[key][()]
+                measurement_units[key.replace("_mean", "")] = node[key].attrs["units"]
+
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1

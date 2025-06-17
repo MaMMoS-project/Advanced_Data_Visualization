@@ -117,12 +117,31 @@ def get_xrd_pattern(hdf5_file, group_path):
     try:
         with h5py.File(hdf5_file, "r") as h5f:
             # Getting counts and angle datasets (with corresponding units)
-            measurement["counts"] = h5f[group_path]["counts"][()]
-            measurement["angle"] = h5f[group_path]["angle"][()]
-            measurement_units["counts"] = h5f[group_path]["counts"].attrs["units"]
-            measurement_units["angle"] = h5f[group_path]["angle"].attrs["units"]
+            node = h5f[group_path]
+            for key in node.keys():
+                if isinstance(node[key], h5py.Group):
+                    if key == "CdTe_integrate":
+                        measurement["intensity"] = node[key]["intensity"][()][:2986]
+                        measurement["angle"] = node[key]["q"][()][:2986]
+                        measurement_units["intensity"] = "a.u."
+                        measurement_units["angle"] = "tth (°)"
+
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
         return 1
 
     return measurement, measurement_units
+
+
+def get_xrd_image(hdf5_file, group_path):
+    image = {}
+
+    try:
+        with h5py.File(hdf5_file, "r") as h5f:
+            image["2D_Camera_Image"] = h5f[group_path]["2D_Camera_Image"][()]
+
+    except KeyError:
+        print("Warning, group path not found in hdf5 file.")
+        return 1
+
+    return image

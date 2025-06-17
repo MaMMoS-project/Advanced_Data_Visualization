@@ -6,3 +6,5 @@ ipykernel
 fabio
 matplotlib
 xarray
+plotly
+nbformat

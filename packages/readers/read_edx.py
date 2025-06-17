@@ -86,7 +86,7 @@ def get_edx_spectrum(hdf5_file, group_path):
     try:
         with h5py.File(hdf5_file, "r") as h5f:
             # Getting counts and energy datasets (with corresponding units)
-            measurement["counts"] = h5f[group_path]["counts"][()][:2048]
+            measurement["counts"] = h5f[group_path]["counts"][()]
             measurement["energy"] = h5f[group_path]["energy"][()]
             measurement_units["counts"] = h5f[group_path]["counts"].attrs["units"]
             measurement_units["energy"] = h5f[group_path]["energy"].attrs["units"]
