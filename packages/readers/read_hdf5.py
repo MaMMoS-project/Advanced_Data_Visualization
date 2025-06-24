@@ -19,7 +19,27 @@ from tqdm import tqdm
 def make_group_path(
     hdf5_file, data_type, measurement_type=None, x_pos=None, y_pos=None
 ):
+    """
+    Builds the path to the data group in the HDF5 file using the data type and optionally the measurement type, x and y positions.
 
+    Parameters
+    ----------
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file to read the data from.
+    data_type : str
+        The type of data to read, either 'EDX', 'MOKE' or 'XRD'.
+    measurement_type : str, optional
+        The type of measurement to read. If not given, the function will only return the group path for the data type.
+    x_pos : float, optional
+        The x position of the measurement. If not given, the function will only return the group path for the data type.
+    y_pos : float, optional
+        The y position of the measurement. If not given, the function will only return the group path for the data type.
+
+    Returns
+    -------
+    str
+        The path to the group in the HDF5 file containing the data.
+    """
     with h5py.File(hdf5_file, "r") as h5f:
         # Check which group corresponds to the data type
         start_group = None
@@ -45,23 +65,21 @@ def make_group_path(
 
 def get_all_positions(hdf5_file, data_type: str):
     """
-    Retrieves all unique positions and associated scan numbers from an HDF5 file.
+    Reads all positions from a HDF5 file for a given data type.
 
     Parameters
     ----------
     hdf5_file : str or pathlib.Path
         The path to the HDF5 file to read the data from.
     data_type : str
-        The type of data to retrieve positions for, corresponds to a subgroup under 'entry'.
+        The type of data to read, either 'EDX', 'MOKE' or 'XRD'.
 
     Returns
     -------
-    list of tuples
-        A sorted list of unique tuples, each containing the x position, y position, and scan number.
+    list
+        A list of tuples (x, y) containing all positions present in the HDF5 file for the given data type.
     """
-
     positions = []
-
     data_group = make_group_path(hdf5_file, data_type=data_type)
 
     with h5py.File(hdf5_file, "r") as h5f:
@@ -81,7 +99,7 @@ def get_all_positions(hdf5_file, data_type: str):
 
 def get_position_units(hdf5_file, data_type: str):
     """
-    Reads the units of the x and y positions from the HDF5 file.
+    Reads the units of the position coordinates from a HDF5 file for a given data type.
 
     Parameters
     ----------
@@ -93,7 +111,7 @@ def get_position_units(hdf5_file, data_type: str):
     Returns
     -------
     dict
-        A dictionary containing the units for the x and y positions.
+        A dictionary with the units of the x and y coordinates of the positions.
     """
     position_units = {}
 
@@ -109,20 +127,21 @@ def get_position_units(hdf5_file, data_type: str):
 
 def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
     """
-    Construct the xarray Dataset with composition, coercivity, and lattice parameter.
+    Reads the measurement data from an HDF5 file and returns an xarray DataArray object containing all the scans of every experiment.
 
     Parameters
     ----------
-    hdf5_file : str or pathlib.Path
+    hdf5_file : str or Path
         The path to the HDF5 file to read the data from.
-    exclude_wafer_edges : bool, default=True
-        If True, exclude the positions at the edges of the wafer (i.e. at x=+/-40 and y=+/-40).
+    exclude_wafer_edges : bool, optional
+        If True, the function will exclude the data measured at the edges of the wafer from the returned DataArray. Defaults to True.
 
     Returns
     -------
-    data : xarray.Dataset
-        An xarray Dataset containing the composition, coercivity and lattice parameters of the samples at each position.
+    xarray.DataArray
+        A DataArray object containing all the scans of every experiment. The DataArray has a name attribute set to "Measurement Data".
     """
+
     # Looking for EDX positions and scan numbers
     positions = get_all_positions(hdf5_file, data_type="EDX")
     position_units = get_position_units(hdf5_file, data_type="EDX")
@@ -216,22 +235,24 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
             if "phase_fraction" in phase_keys:
                 phase_fraction = str(xrd_phases[phase]["phase_fraction"])
                 if not "UNDEF'" in phase_fraction:
-                    phase_fraction = phase_fraction.split("+-")[0].replace("b'", "")
+                    phase_fraction = (
+                        phase_fraction.split("+-")[0].replace("b", "").replace("'", "")
+                    )
                     phase_fraction = float(phase_fraction)
             if "A" in phase_keys:
                 a_str = str(xrd_phases[phase]["A"])
                 if not "UNDEF'" in a_str:
-                    lattice_a = a_str.split("+-")[0].replace("b'", "")
+                    lattice_a = a_str.split("+-")[0].replace("b", "").replace("'", "")
                     lattice_a = float(lattice_a)
             if "B" in phase_keys:
                 b_str = str(xrd_phases[phase]["B"])
                 if not "UNDEF'" in b_str:
-                    lattice_b = b_str.split("+-")[0].replace("b'", "")
+                    lattice_b = b_str.split("+-")[0].replace("b", "").replace("'", "")
                     lattice_b = float(lattice_b)
             if "C" in phase_keys:
                 c_str = str(xrd_phases[phase]["C"])
                 if not "UNDEF'" in c_str:
-                    lattice_c = c_str.split("+-")[0].replace("b'", "").replace("'", "")
+                    lattice_c = c_str.split("+-")[0].replace("b", "").replace("'", "")
                     lattice_c = float(lattice_c)
 
             # Adding all the lattice parameters to the dataset
@@ -267,28 +288,23 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
 
 def search_measurement_data_from_type(hdf5_file, data_type, x_pos, y_pos):
     """
-    Search for measurement data of a given type and scan number in a HDF5 file.
+    Retrieves measurement data from an HDF5 file for a specified data type and position.
 
     Parameters
     ----------
-    hdf5_file : str
-        Path to the HDF5 file
+    hdf5_file : str or pathlib.Path
+        The path to the HDF5 file to read the data from.
     data_type : str
-        Type of measurement data to search for. Can be "EDX", "MOKE" or "XRD".
-    nb_scan : int
-        Number of the scan to search for
+        The type of data to read, either 'EDX', 'MOKE', or 'XRD'.
+    x_pos : float
+        The x position of the measurement.
+    y_pos : float
+        The y position of the measurement.
 
     Returns
     -------
-    data : xarray.DataArray
-        The measurement data
-    data_units : dict
-        A dictionary with the units of each dimension of the data
-
-    Notes
-    -----
-    The group path is built using the data_type and nb_scan values. For EDX and XRD, the group path is
-    "<data_type>/<nb_scan>/Measurement". For MOKE, the group path is "<data_type>/<nb_scan>/Results".
+    tuple
+        A tuple containing the measurement data and its units.
     """
 
     if data_type.lower() == "edx":
@@ -324,36 +340,46 @@ def search_measurement_data_from_type(hdf5_file, data_type, x_pos, y_pos):
 
 def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
     """
-    Add measurement data to the given dataset.
+    Adds a measurement data point to the given dataset. The dataset should have the structure
+    of an xarray DataArray.
 
     Parameters
     ----------
-    dataset : xarray.Dataset
-        The dataset to which the measurement data should be added.
+    dataset : xarray.DataArray
+        The dataset to add the measurement data point to.
     measurement : dict
         A dictionary containing the measurement data.
     data_type : str
-        The type of the measurement data (e.g. "edx", "moke", "xrd").
-    x : int
+        The type of measurement, either 'EDX', 'MOKE', or 'XRD'.
+    x : float
         The x position of the measurement.
-    y : int
+    y : float
         The y position of the measurement.
     x_vals : list
-        A list of all x values in the dataset.
+        A list of all the x values in the dataset.
     y_vals : list
-        A list of all y values in the dataset.
+        A list of all the y values in the dataset.
 
     Returns
     -------
     None
     """
+
     for key in measurement.keys():
         if key not in dataset:
+            data = measurement[key]
+            # Special case for intensity where it is stored as shape (3000, 2)
+            if key == "intensity":
+                data = measurement[key][0][:2986]
+
             dataset[key] = xr.DataArray(
-                np.nan, coords=[y_vals, x_vals, measurement[key]], dims=["y", "x", key]
+                np.nan, coords=[y_vals, x_vals, data], dims=["y", "x", key]
             )
 
-        dataset[key].loc[{"y": y, "x": x}] = measurement[key]
+        if key == "intensity":
+            dataset[key].loc[{"y": y, "x": x}] = measurement[key][0][:2986]
+        else:
+            dataset[key].loc[{"y": y, "x": x}] = measurement[key]
 
     # if data_type.lower() == "edx":
     #     # Generate a new DataArray the first time a new data type is encountered
@@ -398,24 +424,25 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
 
 def get_current_dataset(data_type, dataset_edx, dataset_moke, dataset_xrd):
     """
-    Returns the current dataset for the given data_type from the three given datasets.
+    Returns the current dataset based on the given data_type.
 
     Parameters
     ----------
     data_type : str
-        The type of data to read. Must be one of 'EDX', 'MOKE', 'XRD' or 'all'.
-    dataset_edx : xarray.DataTree
-        The DataTree object containing the EDX data.
-    dataset_moke : xarray.DataTree
-        The DataTree object containing the MOKE data.
-    dataset_xrd : xarray.DataTree
-        The DataTree object containing the XRD data.
+        The type of data to read. Must be one of 'EDX', 'MOKE', 'XRD'.
+    dataset_edx : xarray.Dataset
+        The Dataset containing the EDX data.
+    dataset_moke : xarray.Dataset
+        The Dataset containing the MOKE data.
+    dataset_xrd : xarray.Dataset
+        The Dataset containing the XRD data.
 
     Returns
     -------
-    xarray.DataTree
-        The DataTree object containing the data for the given data_type.
+    xarray.Dataset
+        The current dataset based on the given data_type.
     """
+
     if data_type.lower() == "edx":
         current_dataset = dataset_edx
     elif data_type.lower() == "moke":
@@ -428,22 +455,23 @@ def get_current_dataset(data_type, dataset_edx, dataset_moke, dataset_xrd):
 
 def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
     """
-    Reads the measurement data from an HDF5 file and returns an xarray DataTree object containing all the scans of every experiment.
+    Reads measurement data from the given HDF5 file and returns an xarray DataTree object containing the measurement data.
 
     Parameters
     ----------
-    hdf5_file : str or Path
+    hdf5_file : str or pathlib.Path
         The path to the HDF5 file to read the data from.
     data_type : str
-        The type of data to read. Must be one of 'EDX', 'MOKE', 'XRD' or 'all'.
+        The type of data to read. Must be one of 'EDX', 'MOKE', 'XRD', or 'all'.
     exclude_wafer_edges : bool, optional
         If True, the function will exclude the data measured at the edges of the wafer from the returned DataTree. Defaults to True.
 
     Returns
     -------
     xarray.DataTree
-        A DataTree object containing all the scans of every experiment. The DataTree has a name attribute set to "Measurement Data".
+        A DataTree object containing the measurement data.
     """
+
     # Check if data_type is valid
     if data_type.lower() == "all":
         datatypes = ["EDX", "MOKE", "XRD"]
@@ -504,37 +532,48 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
     return measurement_tree
 
 
-def get_xrd_images(hdf5_file, exclude_wafer_edges=True):
-    dataset = xr.Dataset()
+# def get_xrd_images(hdf5_file, exclude_wafer_edges=True):
+#     dataset = xr.Dataset()
 
-    positions = _get_all_positions(hdf5_file, data_type="xrd")
-    x_vals = sorted(set([pos[0] for pos in positions]))
-    y_vals = sorted(set([pos[1] for pos in positions]))
+#     positions = _get_all_positions(hdf5_file, data_type="xrd")
+#     x_vals = sorted(set([pos[0] for pos in positions]))
+#     y_vals = sorted(set([pos[1] for pos in positions]))
 
-    for x, y, nb_scan in tqdm(positions):
-        if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
-            continue
+#     for x, y, nb_scan in tqdm(positions):
+#         if np.abs(x) + np.abs(y) > 60 and exclude_wafer_edges:
+#             continue
 
-        group_path = make_group_path(["XRD", nb_scan, "image"])
-        image = get_xrd_image(hdf5_file, group_path)["2D_Camera_Image"]
+#         group_path = make_group_path(["XRD", nb_scan, "image"])
+#         image = get_xrd_image(hdf5_file, group_path)["2D_Camera_Image"]
 
-        if "image" not in dataset:
-            dataset["image"] = xr.DataArray(
-                np.nan,
-                coords=[
-                    y_vals,
-                    x_vals,
-                    np.arange(image.shape[0]),
-                    np.arange(image.shape[1]),
-                ],
-                dims=["y", "x", "pixel x", "pixel y"],
-            )
-        dataset["image"].loc[{"y": y, "x": x}] = image
+#         if "image" not in dataset:
+#             dataset["image"] = xr.DataArray(
+#                 np.nan,
+#                 coords=[
+#                     y_vals,
+#                     x_vals,
+#                     np.arange(image.shape[0]),
+#                     np.arange(image.shape[1]),
+#                 ],
+#                 dims=["y", "x", "pixel x", "pixel y"],
+#             )
+#         dataset["image"].loc[{"y": y, "x": x}] = image
 
-    return dataset
+#     return dataset
 
 
 def create_simplified_dataset(hdf5_file, hdf5_save_file):
+    """
+    Creates a simplified HDF5 dataset with the measurement data sorted by x and y position coordinates.
+
+    Parameters
+    ----------
+    hdf5_file : str or pathlib.Path
+        The path to the input HDF5 file.
+    hdf5_save_file : str or pathlib.Path
+        The path to the output HDF5 file.
+    """
+
     group_list = ["edx", "moke", "xrd"]
     coord_list = [
         "({:.1f},{:.1f})".format(float(x), float(y))
