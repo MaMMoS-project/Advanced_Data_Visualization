@@ -44,9 +44,15 @@ def make_group_path(
         # Check which group corresponds to the data type
         start_group = None
         for group in h5f["./"]:
+            if "HT_type" not in h5f[f"./{group}"].attrs.keys():
+                continue
+
             if h5f[f"./{group}"].attrs["HT_type"] == data_type.lower():
-                start_group = f"./{group}"
-                break
+                if "hdf5_reader" in h5f[f"./{group}"].attrs.keys():
+                    start_group = f"./{group}"
+                    break
+                else:
+                    start_group = f"./{group}"
         if start_group is None:
             raise ValueError(f"Data type {data_type} not found in HDF5 file.")
 
@@ -88,7 +94,6 @@ def get_all_positions(hdf5_file, data_type: str):
             if group in ["scan_parameters", "alignment_scans"]:
                 continue
 
-            # print(h5f[f"{data_group}/{group}/"])
             instrument = h5f[f"{data_group}/{group}/instrument"]
             x = round(float(instrument["x_pos"][()]), 1)
             y = round(float(instrument["y_pos"][()]), 1)
@@ -152,132 +157,164 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
     data = xr.Dataset()
 
     # Retrieve EDX composition
-    for x, y in positions:
-        if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
-            continue
+    try:
+        for x, y in positions:
+            if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
+                continue
 
-        edx_group_path = make_group_path(
-            hdf5_file, x_pos=x, y_pos=y, data_type="EDX", measurement_type="Results"
-        )
-        composition, composition_units = get_edx_composition(hdf5_file, edx_group_path)
+            edx_group_path = make_group_path(
+                hdf5_file, x_pos=x, y_pos=y, data_type="EDX", measurement_type="Results"
+            )
+            composition, composition_units = get_edx_composition(
+                hdf5_file, edx_group_path
+            )
 
-        for element in composition:
-            elm_keys = composition[element].keys()
-            element_key = f"{element} Composition"
-            if "AtomPercent" not in elm_keys:
-                value = np.nan
-            else:
-                value = composition[element]["AtomPercent"]
+            for element in composition:
+                elm_keys = composition[element].keys()
+                element_key = f"{element} Composition"
+                if "AtomPercent" not in elm_keys:
+                    value = np.nan
+                else:
+                    value = composition[element]["AtomPercent"]
 
-            if element_key not in data and not math.isnan(value):
-                data[element_key] = xr.DataArray(
-                    np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
-                )
-            if element_key in data:
-                data[element_key].loc[{"y": y, "x": x}] = value
+                if element_key not in data and not math.isnan(value):
+                    data[element_key] = xr.DataArray(
+                        np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
+                    )
+                if element_key in data:
+                    data[element_key].loc[{"y": y, "x": x}] = value
 
-            # Getting the composition units in the xarray
-            if "AtomPercent" in composition_units[element].keys():
-                data[element_key].attrs["units"] = composition_units[element][
-                    "AtomPercent"
-                ]
+                # Getting the composition units in the xarray
+                if "AtomPercent" in composition_units[element].keys():
+                    data[element_key].attrs["units"] = composition_units[element][
+                        "AtomPercent"
+                    ]
+    except KeyError:
+        print("Warning: No EDX results found in the file")
+        pass
 
     # Looking for MOKE positions and scan numbers
     positions = get_all_positions(hdf5_file, data_type="MOKE")
 
     # Retrieve Coercivity (from MOKE results)
-    for x, y in positions:
-        if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
-            continue
-        moke_group_path = make_group_path(
-            hdf5_file, x_pos=x, y_pos=y, data_type="MOKE", measurement_type="Results"
-        )
-        moke_value, moke_units = get_moke_results(
-            hdf5_file, moke_group_path, result_type=None
-        )
-        for value in moke_value:
-            if value not in data:
-                data[value] = xr.DataArray(
-                    np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
-                )
-        # Setting the values for moke in the xarray with the units
-        for value in moke_value:
-            data[value].loc[{"y": y, "x": x}] = moke_value[value]
-            data[value].attrs["units"] = moke_units[value]
+    try:
+        for x, y in positions:
+            if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
+                continue
+            moke_group_path = make_group_path(
+                hdf5_file,
+                x_pos=x,
+                y_pos=y,
+                data_type="MOKE",
+                measurement_type="Results",
+            )
+            moke_value, moke_units = get_moke_results(
+                hdf5_file, moke_group_path, result_type=None
+            )
+            for value in moke_value:
+                if value not in data:
+                    data[value] = xr.DataArray(
+                        np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
+                    )
+            # Setting the values for moke in the xarray with the units
+            for value in moke_value:
+                data[value].loc[{"y": y, "x": x}] = moke_value[value]
+                data[value].attrs["units"] = moke_units[value]
+
+    except KeyError:
+        print("Warning: No MOKE results found in the file")
+        pass
 
     # Looking for XRD positions and scan numbers
     positions = get_all_positions(hdf5_file, data_type="XRD")
 
     # Retrieve Lattice Parameter (from XRD results)
-    for x, y in positions:
-        if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
-            continue
-        xrd_group_path = make_group_path(
-            hdf5_file, x_pos=x, y_pos=y, data_type="XRD", measurement_type="Results"
-        )
-        xrd_phases, xrd_units = get_xrd_results(
-            hdf5_file, xrd_group_path, result_type="Phases"
-        )
+    try:
+        for x, y in positions:
+            if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
+                continue
+            xrd_group_path = make_group_path(
+                hdf5_file, x_pos=x, y_pos=y, data_type="XRD", measurement_type="Results"
+            )
+            xrd_phases, xrd_units = get_xrd_results(
+                hdf5_file, xrd_group_path, result_type="Phases"
+            )
 
-        # Looking for the lattice parameters among all the phases attributs
+            # Looking for the lattice parameters among all the phases attributs
+            for phase in xrd_phases.keys():
+                phase_fraction = np.nan
+                lattice_a = np.nan
+                lattice_b = np.nan
+                lattice_c = np.nan
+
+                phase_fraction_label = f"{phase} Phase Fraction"
+                lattice_a_label = f"{phase} Lattice Parameter A"
+                lattice_b_label = f"{phase} Lattice Parameter B"
+                lattice_c_label = f"{phase} Lattice Parameter C"
+                phase_keys = xrd_phases[phase].keys()
+
+                if "phase_fraction" in phase_keys:
+                    phase_fraction = str(xrd_phases[phase]["phase_fraction"])
+                    if not "UNDEF'" in phase_fraction:
+                        phase_fraction = (
+                            phase_fraction.split("+-")[0]
+                            .replace("b", "")
+                            .replace("'", "")
+                        )
+                        phase_fraction = float(phase_fraction)
+                if "A" in phase_keys:
+                    a_str = str(xrd_phases[phase]["A"])
+                    if not "UNDEF'" in a_str:
+                        lattice_a = (
+                            a_str.split("+-")[0].replace("b", "").replace("'", "")
+                        )
+                        lattice_a = float(lattice_a)
+                if "B" in phase_keys:
+                    b_str = str(xrd_phases[phase]["B"])
+                    if not "UNDEF'" in b_str:
+                        lattice_b = (
+                            b_str.split("+-")[0].replace("b", "").replace("'", "")
+                        )
+                        lattice_b = float(lattice_b)
+                if "C" in phase_keys:
+                    c_str = str(xrd_phases[phase]["C"])
+                    if not "UNDEF'" in c_str:
+                        lattice_c = (
+                            c_str.split("+-")[0].replace("b", "").replace("'", "")
+                        )
+                        lattice_c = float(lattice_c)
+
+                # Adding all the lattice parameters to the dataset
+                lattice_labels = [
+                    phase_fraction_label,
+                    lattice_a_label,
+                    lattice_b_label,
+                    lattice_c_label,
+                ]
+                lattice_values = [phase_fraction, lattice_a, lattice_b, lattice_c]
+
+                for i in range(len(lattice_labels)):
+                    # Test if all lattice values are not np.nan (if there is no B values we do not create the corresponding array)
+                    if lattice_labels[i] not in data and not math.isnan(
+                        lattice_values[i]
+                    ):
+                        data[lattice_labels[i]] = xr.DataArray(
+                            np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
+                        )
+                    if lattice_labels[i] in data:
+                        data[lattice_labels[i]].loc[{"y": y, "x": x}] = lattice_values[
+                            i
+                        ]
+
+        # Getting the lattice units in the xarray
         for phase in xrd_phases.keys():
-            phase_fraction = np.nan
-            lattice_a = np.nan
-            lattice_b = np.nan
-            lattice_c = np.nan
+            for i, elm in enumerate(["phase_fraction", "A", "B", "C"]):
+                if elm in phase_keys and elm in xrd_units[phase]:
+                    data[lattice_labels[i]].attrs["units"] = xrd_units[phase][elm]
 
-            phase_fraction_label = f"{phase} Phase Fraction"
-            lattice_a_label = f"{phase} Lattice Parameter A"
-            lattice_b_label = f"{phase} Lattice Parameter B"
-            lattice_c_label = f"{phase} Lattice Parameter C"
-            phase_keys = xrd_phases[phase].keys()
-
-            if "phase_fraction" in phase_keys:
-                phase_fraction = str(xrd_phases[phase]["phase_fraction"])
-                if not "UNDEF'" in phase_fraction:
-                    phase_fraction = (
-                        phase_fraction.split("+-")[0].replace("b", "").replace("'", "")
-                    )
-                    phase_fraction = float(phase_fraction)
-            if "A" in phase_keys:
-                a_str = str(xrd_phases[phase]["A"])
-                if not "UNDEF'" in a_str:
-                    lattice_a = a_str.split("+-")[0].replace("b", "").replace("'", "")
-                    lattice_a = float(lattice_a)
-            if "B" in phase_keys:
-                b_str = str(xrd_phases[phase]["B"])
-                if not "UNDEF'" in b_str:
-                    lattice_b = b_str.split("+-")[0].replace("b", "").replace("'", "")
-                    lattice_b = float(lattice_b)
-            if "C" in phase_keys:
-                c_str = str(xrd_phases[phase]["C"])
-                if not "UNDEF'" in c_str:
-                    lattice_c = c_str.split("+-")[0].replace("b", "").replace("'", "")
-                    lattice_c = float(lattice_c)
-
-            # Adding all the lattice parameters to the dataset
-            lattice_labels = [
-                phase_fraction_label,
-                lattice_a_label,
-                lattice_b_label,
-                lattice_c_label,
-            ]
-            lattice_values = [phase_fraction, lattice_a, lattice_b, lattice_c]
-
-            for i in range(len(lattice_labels)):
-                # Test if all lattice values are not np.nan (if there is no B values we do not create the corresponding array)
-                if lattice_labels[i] not in data and not math.isnan(lattice_values[i]):
-                    data[lattice_labels[i]] = xr.DataArray(
-                        np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
-                    )
-                if lattice_labels[i] in data:
-                    data[lattice_labels[i]].loc[{"y": y, "x": x}] = lattice_values[i]
-
-    # Getting the lattice units in the xarray
-    for phase in xrd_phases.keys():
-        for i, elm in enumerate(["phase_fraction", "A", "B", "C"]):
-            if elm in phase_keys and elm in xrd_units[phase]:
-                data[lattice_labels[i]].attrs["units"] = xrd_units[phase][elm]
+    except KeyError:
+        print("Warning: No XRD results found in the file")
+        pass
 
     # Setting the units for x_pos and y_pos
     data["x"].attrs["units"] = position_units["x_pos"]
@@ -453,7 +490,7 @@ def get_current_dataset(data_type, dataset_edx, dataset_moke, dataset_xrd):
     return current_dataset
 
 
-def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
+def get_measurement_data(hdf5_file, datatype, exclude_wafer_edges=True):
     """
     Reads measurement data from the given HDF5 file and returns an xarray DataTree object containing the measurement data.
 
@@ -473,14 +510,14 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
     """
 
     # Check if data_type is valid
-    if data_type.lower() == "all":
+    if datatype.lower() == "all":
         datatypes = ["EDX", "MOKE", "XRD"]
 
-    elif not data_type.lower() in ["edx", "moke", "xrd"]:
+    elif not datatype.lower() in ["edx", "moke", "xrd"]:
         print("data_type must be one of 'EDX', 'MOKE', 'XRD' or 'all'.")
         return 1
     else:
-        datatypes = [data_type]
+        datatypes = [datatype]
 
     measurement_tree = xr.DataTree(name="Measurement Data")
     dataset_edx = xr.Dataset()
@@ -488,9 +525,17 @@ def get_measurement_data(hdf5_file, data_type, exclude_wafer_edges=True):
     dataset_xrd = xr.Dataset()
 
     for data_type in datatypes:
+        print("Reading", data_type)
         positions = get_all_positions(hdf5_file, data_type=data_type)
         x_vals = sorted(set([pos[0] for pos in positions]))
         y_vals = sorted(set([pos[1] for pos in positions]))
+
+        # Looking for modified datasets
+        with h5py.File(hdf5_file, "r") as h5f:
+            group = make_group_path(hdf5_file, data_type)
+            if "hdf5_reader" in h5f[group].attrs.keys():
+                print("Modified dataset found for", data_type)
+                print(h5f[group].attrs["note"])
 
         # Add measurement data
         for x, y in positions:
@@ -590,7 +635,6 @@ def create_simplified_dataset(hdf5_file, hdf5_save_file):
                 continue
 
             if datatype in group_list:
-                print(f"Datatype: {datatype}")
                 for coord in coord_list:
                     # Check if the group already exists
                     saved_group_coord = f"{group}/{coord}"
@@ -627,7 +671,6 @@ def create_simplified_dataset(hdf5_file, hdf5_save_file):
                         if datatype == "edx":
                             for key in results.keys():
                                 if "Element" in key:
-                                    print(key)
                                     node.create_dataset(key.split(" ")[-1], data=np.nan)
                                     node[key.split(" ")[-1]].attrs["units"] = "at.%"
                                     node[key.split(" ")[-1]].attrs["HT_type"] = datatype
