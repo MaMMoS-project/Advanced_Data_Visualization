@@ -13,6 +13,7 @@ import numpy as np
 from packages.readers.read_edx import get_edx_composition, get_edx_spectrum
 from packages.readers.read_moke import get_moke_results, get_moke_loop
 from packages.readers.read_xrd import get_xrd_results, get_xrd_pattern, get_xrd_image
+from packages.readers.read_profil import get_thickness
 from tqdm import tqdm
 
 
@@ -316,6 +317,35 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
         print("Warning: No XRD results found in the file")
         pass
 
+    # Looking for PROFIL positions and scan numbers
+    positions = get_all_positions(hdf5_file, data_type="PROFIL")
+
+    try:
+        for x, y in positions:
+            if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
+                continue
+            profil_group_path = make_group_path(
+                hdf5_file,
+                x_pos=x,
+                y_pos=y,
+                data_type="PROFIL",
+                measurement_type="Results",
+            )
+            profil_results, profil_units = get_thickness(
+                hdf5_file, group_path=profil_group_path, result_type="measured_height"
+            )
+
+            for value in profil_results.keys():
+                if value not in data:
+                    data[value] = xr.DataArray(
+                        np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
+                    )
+                data[value].loc[{"y": y, "x": x}] = profil_results[value]
+                data[value].attrs["units"] = profil_units[value]
+    except KeyError:
+        print("Warning: No PROFIL results found in the file")
+        pass
+
     # Setting the units for x_pos and y_pos
     data["x"].attrs["units"] = position_units["x_pos"]
     data["y"].attrs["units"] = position_units["y_pos"]
@@ -417,44 +447,6 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
             dataset[key].loc[{"y": y, "x": x}] = measurement[key][0][:2986]
         else:
             dataset[key].loc[{"y": y, "x": x}] = measurement[key]
-
-    # if data_type.lower() == "edx":
-    #     # Generate a new DataArray the first time a new data type is encountered
-    #     if "counts" not in dataset:
-    #         dataset["counts"] = xr.DataArray(
-    #             np.nan,
-    #             coords=[y_vals, x_vals, measurement["energy"]],
-    #             dims=["y", "x", "energy"],
-    #         )
-    #     # Add the measurement data point to the existing DataArray
-    #     dataset["counts"].loc[{"y": y, "x": x, "energy": measurement["energy"]}] = (
-    #         measurement["counts"]
-    #     )
-
-    # if data_type.lower() == "moke":
-    # if "Loops" not in dataset:
-    #     dataset["Loops"] = xr.DataArray(
-    #         np.nan,
-    #         coords=[y_vals, x_vals, ["magnetization", "applied field"], n_indexes],
-    #         dims=["y", "x", "index_value", "n_indexes"],
-    #     )
-    # dataset["Loops"].loc[
-    #     {"y": y, "x": x, "index_value": "magnetization", "n_indexes": n_indexes}
-    # ] = measurement["magnetization"]
-    # dataset["Loops"].loc[
-    #     {"y": y, "x": x, "index_value": "applied field", "n_indexes": n_indexes}
-    # ] = measurement["applied field"]
-
-    # if data_type.lower() == "xrd":
-    #     if "counts" not in dataset:
-    #         dataset["counts"] = xr.DataArray(
-    #             np.nan,
-    #             coords=[y_vals, x_vals, measurement["angle"]],
-    #             dims=["y", "x", "angle"],
-    #         )
-    #     dataset["counts"].loc[{"y": y, "x": x, "angle": measurement["angle"]}] = (
-    #         measurement["counts"]
-    #     )
 
     return None
 
