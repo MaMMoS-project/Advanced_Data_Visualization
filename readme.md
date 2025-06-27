@@ -8,7 +8,7 @@
 
 ## About
 
-Advanced Data Visualization NEEL is coded in Python code with a Jupyter Notebook provided by Institut Néel under the MaMMoS Project. The package used to visualize and manipulate the data with python commands. A tool (DaHU) is already provided to quickly visualize the data. However, this Notebook is provided to extract data into xarrays to do more advanced analysis.
+Advanced Data Visualization NEEL is coded in Python code with a Jupyter Notebook provided by Institut Néel. The package used to visualize and manipulate the data with python commands. A tool (DaHU) is already provided to quickly visualize the data. However, this Notebook is provided to extract data into xarrays to do more advanced analysis.
 
 You can contact me for any issues at william.rigaut@neel.cnrs.fr
 
