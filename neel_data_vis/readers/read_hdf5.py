@@ -55,7 +55,8 @@ def make_group_path(
                 else:
                     start_group = f"./{group}"
         if start_group is None:
-            raise ValueError(f"Data type {data_type} not found in HDF5 file.")
+            print(f"Data type {data_type} not found in HDF5 file.")
+            return 1
 
         if measurement_type is None or x_pos is None or y_pos is None:
             return start_group
@@ -190,15 +191,14 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                     data[element_key].attrs["units"] = composition_units[element][
                         "AtomPercent"
                     ]
-    except KeyError:
+    except (KeyError, TypeError):
         print("Warning: No EDX results found in the file")
         pass
 
-    # Looking for MOKE positions and scan numbers
-    positions = get_all_positions(hdf5_file, data_type="MOKE")
-
     # Retrieve Coercivity (from MOKE results)
     try:
+        # Looking for MOKE positions and scan numbers
+        positions = get_all_positions(hdf5_file, data_type="MOKE")
         for x, y in positions:
             if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
                 continue
@@ -222,15 +222,15 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                 data[value].loc[{"y": y, "x": x}] = moke_value[value]
                 data[value].attrs["units"] = moke_units[value]
 
-    except KeyError:
+    except (KeyError, TypeError):
         print("Warning: No MOKE results found in the file")
         pass
 
-    # Looking for XRD positions and scan numbers
-    positions = get_all_positions(hdf5_file, data_type="XRD")
-
-    # Retrieve Lattice Parameter (from XRD results)
     try:
+        # Looking for XRD positions and scan numbers
+        positions = get_all_positions(hdf5_file, data_type="XRD")
+
+        # Retrieve Lattice Parameter (from XRD results)
         for x, y in positions:
             if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
                 continue
@@ -313,14 +313,13 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                 if elm in phase_keys and elm in xrd_units[phase]:
                     data[lattice_labels[i]].attrs["units"] = xrd_units[phase][elm]
 
-    except KeyError:
+    except (KeyError, TypeError):
         print("Warning: No XRD results found in the file")
         pass
 
-    # Looking for PROFIL positions and scan numbers
-    positions = get_all_positions(hdf5_file, data_type="PROFIL")
-
     try:
+        # Looking for PROFIL positions and scan numbers
+        positions = get_all_positions(hdf5_file, data_type="PROFIL")
         for x, y in positions:
             if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
                 continue
@@ -342,7 +341,7 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                     )
                 data[value].loc[{"y": y, "x": x}] = profil_results[value]
                 data[value].attrs["units"] = profil_units[value]
-    except KeyError:
+    except (KeyError, TypeError):
         print("Warning: No PROFIL results found in the file")
         pass
 
@@ -435,16 +434,9 @@ def add_measurement_data(dataset, measurement, data_type, x, y, x_vals, y_vals):
     for key in measurement.keys():
         if key not in dataset:
             data = measurement[key]
-            # Special case for intensity where it is stored as shape (3000, 2)
-            if key == "intensity":
-                data = measurement[key][0][:2986]
-
             dataset[key] = xr.DataArray(
                 np.nan, coords=[y_vals, x_vals, data], dims=["y", "x", key]
             )
-
-        if key == "intensity":
-            dataset[key].loc[{"y": y, "x": x}] = measurement[key][0][:2986]
         else:
             dataset[key].loc[{"y": y, "x": x}] = measurement[key]
 
@@ -536,6 +528,7 @@ def get_measurement_data(hdf5_file, datatype, exclude_wafer_edges=True):
             measurement, units = search_measurement_data_from_type(
                 hdf5_file, data_type, x, y
             )
+            # print(measurement)
             current_dataset = get_current_dataset(
                 data_type, dataset_edx, dataset_moke, dataset_xrd
             )

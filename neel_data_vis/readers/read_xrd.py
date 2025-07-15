@@ -120,11 +120,21 @@ def get_xrd_pattern(hdf5_file, group_path):
             node = h5f[group_path]
             for key in node.keys():
                 if isinstance(node[key], h5py.Group):
+                    # ESRF data
                     if key == "CdTe_integrate":
-                        measurement["intensity"] = node[key]["intensity"][()][:2986]
+                        measurement["intensity"] = node[key]["intensity"][()][0][:2986]
                         measurement["angle"] = node[key]["q"][()][:2986]
                         measurement_units["intensity"] = "a.u."
                         measurement_units["angle"] = "tth (°)"
+
+                # Smartlab data
+                else:
+                    if key == "angle":
+                        measurement["angle"] = node[key][()]
+                        measurement_units["angle"] = "tth (°)"
+                    elif key == "intensity":
+                        measurement["intensity"] = node[key][()]
+                        measurement_units["intensity"] = "a.u."
 
     except KeyError:
         print("Warning, group path not found in hdf5 file.")
