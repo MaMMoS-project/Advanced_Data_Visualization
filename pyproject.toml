@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "neel-data-vis"
+version = "0.1.0"
+description = "Advanced Data Visualization NEEL"
+readme = "readme.md"
+authors = [{ name = "William Rigaut" }]
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3 :: Only",
+    'Topic :: Scientific/Engineering :: Physics',
+]
+requires-python = ">=3.11"
+dependencies = [
+    "h5py",
+    "pathlib",
+    "xml-python",
+    "tqdm",
+    "ipykernel",
+    "fabio",
+    "matplotlib",
+    "xarray",
+    "plotly",
+    "nbformat",
+]
