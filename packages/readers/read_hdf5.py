@@ -48,12 +48,17 @@ def make_group_path(
             if "HT_type" not in h5f[f"./{group}"].attrs.keys():
                 continue
 
+            if data_type is None:
+                start_group = f"./{group}"
+                break
+
             if h5f[f"./{group}"].attrs["HT_type"] == data_type.lower():
                 if "hdf5_reader" in h5f[f"./{group}"].attrs.keys():
                     start_group = f"./{group}"
                     break
                 else:
                     start_group = f"./{group}"
+
         if start_group is None:
             print(f"Data type {data_type} not found in HDF5 file.")
             return 1
@@ -150,8 +155,8 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
     """
 
     # Looking for EDX positions and scan numbers
-    positions = get_all_positions(hdf5_file, data_type="EDX")
-    position_units = get_position_units(hdf5_file, data_type="EDX")
+    positions = get_all_positions(hdf5_file, data_type=None)
+    position_units = get_position_units(hdf5_file, data_type=None)
 
     x_vals = sorted(set([pos[0] for pos in positions]))
     y_vals = sorted(set([pos[1] for pos in positions]))
