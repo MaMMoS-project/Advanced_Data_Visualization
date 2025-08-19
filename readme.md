@@ -25,8 +25,8 @@ you can do that with the following command in a terminal:
     `python3 -m venv .venv`
 and then:
     `source .venv/bin/activate`
-Finally to import all the libraries:
-    `pip install -r requirements.txt`
+Finally to import all the libraries and to install an editable version:
+    `pip install -e .`
 
 Once the installation is done, you can open the Notebook `Advanced Data Visualization NEEL.ipynb`
 No example dataset is provided, contact me if you need an example.

@@ -10,10 +10,10 @@ import h5py
 import math
 import xarray as xr
 import numpy as np
-from packages.readers.read_edx import get_edx_composition, get_edx_spectrum
-from packages.readers.read_moke import get_moke_results, get_moke_loop
-from packages.readers.read_xrd import get_xrd_results, get_xrd_pattern, get_xrd_image
-from packages.readers.read_profil import get_thickness
+from .read_edx import get_edx_composition, get_edx_spectrum
+from .read_moke import get_moke_results, get_moke_loop
+from .read_xrd import get_xrd_results, get_xrd_pattern, get_xrd_image
+from .read_profil import get_thickness
 from tqdm import tqdm
 
 
