@@ -70,8 +70,9 @@ def make_group_path(
         x_pos = str(round(float(x_pos), 1))
         y_pos = str(round(float(y_pos), 1))
         group = f"({x_pos},{y_pos})"
-        instrument = h5f[f"{start_group}/{group}"][measurement_type.lower()]
+
         group_path = f"{start_group}/{group}/{measurement_type.lower()}"
+        instrument = h5f[f"{start_group}/{group}"][measurement_type.lower()]
 
     return group_path
 
@@ -165,6 +166,7 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
 
     # Retrieve EDX composition
     try:
+        positions = get_all_positions(hdf5_file, data_type="EDX")
         for x, y in positions:
             if np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges:
                 continue
