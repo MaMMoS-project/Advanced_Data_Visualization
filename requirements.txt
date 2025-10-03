@@ -8,3 +8,6 @@ matplotlib
 xarray
 plotly
 nbformat
+kaleido
+pillow
+python-pptx

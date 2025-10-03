@@ -30,30 +30,24 @@ def get_edx_composition(hdf5_file, group_path):
     composition = {}
     composition_units = {}
 
-    try:
-        with h5py.File(hdf5_file, "r") as h5f:
-            # All the elements are stored in the results group
-            elements = h5f[group_path].keys()
-            for element in elements:
-                # Skipping TRTResult group as it is not part of the composition
-                if "TRTResult" in element:
-                    continue
-                elm_group = h5f[f"{group_path}/{element}"]
-                # Initialization of the sub dictionary for each element
-                elm_name = element.split()[-1]
-                composition[elm_name] = {}
-                composition_units[elm_name] = {}
+    with h5py.File(hdf5_file, "r") as h5f:
+        # All the elements are stored in the results group
+        elements = h5f[group_path].keys()
+        for element in elements:
+            # Skipping TRTResult group as it is not part of the composition
+            if "TRTResult" in element:
+                continue
+            elm_group = h5f[f"{group_path}/{element}"]
+            # Initialization of the sub dictionary for each element
+            elm_name = element.split()[-1]
+            composition[elm_name] = {}
+            composition_units[elm_name] = {}
 
-                for key in elm_group.keys():
-                    composition[elm_name][key] = elm_group[key][()]
+            for key in elm_group.keys():
+                composition[elm_name][key] = elm_group[key][()]
 
-                    if "units" in elm_group[key].attrs.keys():
-                        composition_units[elm_name][key] = elm_group[key].attrs["units"]
-                # print(composition_units)
-
-    except KeyError:
-        print("Warning, group path not found in hdf5 file.")
-        return 1
+                if "units" in elm_group[key].attrs.keys():
+                    composition_units[elm_name][key] = elm_group[key].attrs["units"]
 
     return composition, composition_units
 

@@ -68,23 +68,18 @@ def get_xrd_results(hdf5_file, group_path, result_type):
     parent_attrs = {}
     xrd_units = {}
 
-    try:
-        with h5py.File(hdf5_file, "r") as h5f:
-            result_types = h5f[group_path].keys()
-            for result in result_types:
-                if result_type.lower() in result:
-                    result_group = h5f[f"{group_path}/{result}"]
-                    for elm in result_group:
-                        result_group[elm].visititems(_get_attrs)
-                        # Retrieve all the elements of the group and put them in the parent dictionary
-                        parent_attrs[elm] = attrs
-                        xrd_units[elm] = units
-                        attrs = {}
-                        units = {}
-
-    except KeyError:
-        print("Warning, group path not found in hdf5 file.")
-        return 1
+    with h5py.File(hdf5_file, "r") as h5f:
+        result_types = h5f[group_path].keys()
+        for result in result_types:
+            if result_type.lower() in result:
+                result_group = h5f[f"{group_path}/{result}"]
+                for elm in result_group:
+                    result_group[elm].visititems(_get_attrs)
+                    # Retrieve all the elements of the group and put them in the parent dictionary
+                    parent_attrs[elm] = attrs
+                    xrd_units[elm] = units
+                    attrs = {}
+                    units = {}
 
     return parent_attrs, xrd_units
 
@@ -114,31 +109,20 @@ def get_xrd_pattern(hdf5_file, group_path):
 
     measurement = {}
     measurement_units = {}
-    try:
-        with h5py.File(hdf5_file, "r") as h5f:
-            # Getting counts and angle datasets (with corresponding units)
-            node = h5f[group_path]
-            for key in node.keys():
-                if isinstance(node[key], h5py.Group):
-                    # ESRF data
-                    if key == "CdTe_integrate":
-                        measurement["intensity"] = node[key]["intensity"][()][0][:2986]
-                        measurement["angle"] = node[key]["q"][()][:2986]
-                        measurement_units["intensity"] = "a.u."
-                        measurement_units["angle"] = "tth (°)"
 
-                # Smartlab data
-                else:
-                    if key == "angle":
-                        measurement["angle"] = node[key][()]
-                        measurement_units["angle"] = "tth (°)"
-                    elif key == "intensity":
-                        measurement["intensity"] = node[key][()]
-                        measurement_units["intensity"] = "a.u."
+    with h5py.File(hdf5_file, "r") as h5f:
+        # Getting counts and angle datasets (with corresponding units)
+        node = h5f[group_path]
+        for key in node.keys():
+            if isinstance(node[key], h5py.Group):
+                if key == "integrated":
+                    measurement["counts"] = node[key]["counts"][()]
+                    measurement["tth"] = node[key]["tth"][()]
+                    measurement["q"] = node[key]["q"][()]
 
-    except KeyError:
-        print("Warning, group path not found in hdf5 file.")
-        return 1
+                    measurement_units["counts"] = "a.u."
+                    measurement_units["tth"] = "(°)"
+                    measurement_units["q"] = "nm^-1"
 
     return measurement, measurement_units
 
@@ -148,7 +132,7 @@ def get_xrd_image(hdf5_file, group_path):
 
     try:
         with h5py.File(hdf5_file, "r") as h5f:
-            image["2D_Camera_Image"] = h5f[group_path]["2D_Camera_Image"][()]
+            image["2D_Camera_Image"] = h5f[group_path]["2Dimage"][()]
 
     except KeyError:
         print("Warning, group path not found in hdf5 file.")

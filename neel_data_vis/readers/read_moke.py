@@ -31,28 +31,15 @@ def get_moke_results(hdf5_file, group_path, result_type=None):
     results_moke = {}
     units_results_moke = {}
 
-    try:
-        with h5py.File(hdf5_file, "r") as h5f:
-            node = h5f[group_path]
-            for key in node.keys():
-                if isinstance(node[key], h5py.Group) and key != "parameters":
-                    results_moke[key] = node[key]["mean"][()]
-                    units_results_moke[key] = node[key]["mean"].attrs["units"]
-                elif isinstance(node[key], h5py.Dataset):
-                    results_moke[key] = node[key][()]
-                    units_results_moke[key] = node[key].attrs["units"]
-
-                # if isinstance(node[key], h5py.Dataset):
-                #     if node[key].shape == ():
-                #         results_moke[key] = float(node[key][()])
-                #     else:
-                #         results_moke[key] = node[key][()]
-                #     if "units" in node[key].attrs.keys():
-                #         units_results_moke[key] = node[key].attrs["units"]
-
-    except KeyError:
-        print("Warning, group path not found in hdf5 file.")
-        return 1
+    with h5py.File(hdf5_file, "r") as h5f:
+        node = h5f[group_path]
+        for key in node.keys():
+            if isinstance(node[key], h5py.Group) and key != "parameters":
+                results_moke[key] = node[key]["mean"][()]
+                units_results_moke[key] = node[key]["mean"].attrs["units"]
+            elif isinstance(node[key], h5py.Dataset):
+                results_moke[key] = node[key][()]
+                units_results_moke[key] = node[key].attrs["units"]
 
     if result_type is not None:
         if result_type.lower() in results_moke.keys():
