@@ -269,6 +269,24 @@ def set_xrd_phases(
     return data
 
 
+def set_profil_values(
+    data, profil_results, profil_units, x, y, x_vals, y_vals, group_path_label=None
+):
+    for value in profil_results.keys():
+        # Create a label for the dataset, can handle multiple datasets
+        label = f"{value}"
+        if group_path_label is not None:
+            label = f"{group_path_label} {value}"
+
+        # Creating a nex xrarray if it does not exist
+        if value not in data:
+            data[label] = xr.DataArray(np.nan, coords=[y_vals, x_vals], dims=["y", "x"])
+        data[label].loc[{"y": y, "x": x}] = profil_results[value]
+        data[label].attrs["units"] = profil_units[value]
+
+    return data
+
+
 def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
     """
     Reads the measurement data from an HDF5 file and returns an xarray DataArray object containing all the scans of every experiment.
@@ -445,17 +463,29 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
                 data_type="PROFIL",
                 measurement_type="Results",
             )
-            profil_results, profil_units = get_thickness(
-                hdf5_file, group_path=profil_group_path, result_type="measured_height"
-            )
+            for group_path in profil_group_path:
+                group_path_label = get_group_path_label(profil_group_path, group_path)
 
-            for value in profil_results.keys():
-                if value not in data:
-                    data[value] = xr.DataArray(
-                        np.nan, coords=[y_vals, x_vals], dims=["y", "x"]
+                try:
+                    profil_results, profil_units = get_thickness(
+                        hdf5_file,
+                        group_path=group_path,
+                        result_type="measured_height",
                     )
-                data[value].loc[{"y": y, "x": x}] = profil_results[value]
-                data[value].attrs["units"] = profil_units[value]
+                    set_profil_values(
+                        data,
+                        profil_results,
+                        profil_units,
+                        x,
+                        y,
+                        x_vals,
+                        y_vals,
+                        group_path_label=group_path_label,
+                    )
+
+                except KeyError:
+                    # Skipping the scan without PROFIL data
+                    pass
     except (KeyError, TypeError):
         print("Warning: No PROFIL results found in the file")
         pass
