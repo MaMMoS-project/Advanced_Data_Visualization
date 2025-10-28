@@ -128,7 +128,9 @@ def get_position_units(hdf5_file, data_type: str):
     root_group = make_group_path(hdf5_file, data_type=data_type)[0]
 
     with h5py.File(hdf5_file, "r") as h5f:
-        instrument = h5f[f"{root_group}"]["(0.0,0.0)"]["instrument"]
+        for key in h5f[f"{root_group}"].keys():
+            instrument = h5f[f"{root_group}"][key]["instrument"]
+            break
         position_units["x_pos"] = instrument["x_pos"].attrs["units"]
         position_units["y_pos"] = instrument["y_pos"].attrs["units"]
 

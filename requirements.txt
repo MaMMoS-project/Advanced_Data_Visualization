@@ -11,3 +11,5 @@ nbformat
 kaleido
 pillow
 python-pptx
+mammos_units
+mammos_entity
