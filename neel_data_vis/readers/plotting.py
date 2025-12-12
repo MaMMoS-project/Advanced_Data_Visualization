@@ -25,8 +25,8 @@ def colorbar_layout(z_min, z_max, precision=0, title=""):
     """
     z_mid = (z_min + z_max) / 2
     colorbar = dict(
-        colorbar_title=dict(text=f"{title} <br>&nbsp;<br>", font=dict(size=22)),
-        colorbar_tickfont=dict(size=22),
+        colorbar_title=dict(text=f"{title} <br>&nbsp;<br>", font=dict(size=24)),
+        colorbar_tickfont=dict(size=24),
         colorbar_tickvals=[
             z_min,
             (z_min + z_mid) / 2,
@@ -91,11 +91,17 @@ def plot_heatmap(
     height=600,
     axis_tick_font_size=22,
     axis_title_font_size=20,
+    colorbar_tickfont_size=22,
+    colorbar_title_font_size=20,
     precision=1,
 ):
 
     fig = px.imshow(
-        data, color_continuous_scale=colorscale, range_color=range_color, aspect="equal"
+        data,
+        color_continuous_scale=colorscale,
+        range_color=range_color,
+        aspect="equal",
+        # text_auto=True,
     )  # using imshow from plotly
     fig.update_layout(
         title=graph_title,
@@ -111,16 +117,24 @@ def plot_heatmap(
         xaxis=dict(
             tickfont=dict(size=axis_tick_font_size),
             title_font=dict(size=axis_title_font_size),
+            tickmode="array",
+            tickvals=[-40, -20, 0, 20, 40],
         ),
         yaxis=dict(
             tickfont=dict(size=axis_tick_font_size),
             title_font=dict(size=axis_title_font_size),
+            tickmode="array",
+            tickvals=[-40, -20, 0, 20, 40],
         ),
     )
     fig.update_coloraxes(
         colorbar_layout(
             range_color[0], range_color[1], precision=precision, title=coloraxe_title
         )
+    )
+    fig.update_coloraxes(
+        colorbar_tickfont_size=colorbar_tickfont_size,
+        colorbar_title_font_size=colorbar_title_font_size,
     )
 
     return fig
@@ -130,6 +144,8 @@ def plot_scatter(
     x,
     y,
     color,
+    range_color=None,
+    precision=0,
     mask=None,
     x_label="X",
     y_label="Y",
@@ -176,11 +192,15 @@ def plot_scatter(
         mask = (df[f"{color_label}"] >= mask[0]) & (df[f"{color_label}"] <= mask[1])
         df = df[mask]
 
+    if range_color is None:
+        range_color = (df[f"{color_label}"].min(), df[f"{color_label}"].max())
+
     fig = px.scatter(
         df,
         x=f"{x_label}",
         y=f"{y_label}",
         color=f"{color_label}",
+        range_color=range_color,
     )
     fig.update_layout(
         title=graph_title,
@@ -197,6 +217,15 @@ def plot_scatter(
         width=width,
         height=height,
     )
+    if range_color is not None:
+        fig.update_coloraxes(
+            colorbar_layout(
+                range_color[0],
+                range_color[1],
+                precision=precision,
+                title=color_label,
+            )
+        )
     if x_range is not None:
         fig.update_xaxes(range=x_range)
     if y_range is not None:
@@ -212,6 +241,8 @@ def plot_ternary(
     b,
     c,
     color,
+    range_color=None,
+    precision=1,
     mask=None,
     a_label="A",
     b_label="B",
@@ -261,12 +292,16 @@ def plot_ternary(
         mask = (df[f"{color_label}"] >= mask[0]) & (df[f"{color_label}"] <= mask[1])
         df = df[mask]
 
+    if range_color is None:
+        range_color = (df[f"{color_label}"].min(), df[f"{color_label}"].max())
+
     fig = px.scatter_ternary(
         df,
         a=f"{a_label}",
         b=f"{b_label}",
         c=f"{c_label}",
         color=f"{color_label}",
+        range_color=range_color,
         color_continuous_scale=colorscale,
     )  # Using scatter_ternary from plotly
     fig.update_layout(
@@ -284,6 +319,14 @@ def plot_ternary(
         ),
         width=width,
         height=height,
+    )
+    fig.update_coloraxes(
+        colorbar_layout(
+            range_color[0],
+            range_color[1],
+            precision=precision,
+            title=color_label,
+        )
     )
     fig.update_traces(marker={"size": marker_size})
     fig.update_coloraxes(colorbar_tickfont_size=colorbar_tickfont_size)
@@ -343,5 +386,72 @@ def plot_waterfall(
     fig.update_yaxes(
         autorange=True
     )  # To have the y axis with negative values below positive values
+
+    return fig
+
+
+def plot_image(
+    data,
+    graph_title=None,
+    coloraxe_title=None,
+    colorscale="plasma",
+    range_color=(0, 100),
+    width=1000,
+    height=1000,
+    axis_tick_font_size=22,
+    axis_title_font_size=20,
+    colorbar_tickfont_size=22,
+    colorbar_title_font_size=20,
+    precision=0,
+    logscale=False,
+):
+    if logscale:
+        plasma = px.colors.sequential.Plasma
+        colorscale = [
+            [0, plasma[0]],
+            [1.0 / 1000, plasma[2]],
+            [1.0 / 100, plasma[4]],
+            [1.0 / 10, plasma[7]],
+            [1.0, plasma[9]],
+        ]
+
+    fig = px.imshow(
+        data,
+        color_continuous_scale=colorscale,
+        range_color=range_color,
+        aspect="equal",
+    )
+
+    fig.update_layout(
+        title=graph_title,
+        xaxis_title="",
+        yaxis_title="",
+        width=width,
+        height=height,
+    )
+
+    fig.update_layout(
+        xaxis=dict(
+            tickfont=dict(size=axis_tick_font_size),
+            title_font=dict(size=axis_title_font_size),
+            tickmode="array",
+            tickvals=[0, 500, 1000, 1500, 2000],
+        ),
+        yaxis=dict(
+            tickfont=dict(size=axis_tick_font_size),
+            title_font=dict(size=axis_title_font_size),
+            tickmode="array",
+            tickvals=[0, 500, 1000, 1500, 2000],
+        ),
+    )
+    fig.update_coloraxes(
+        colorbar_layout(
+            range_color[0], range_color[1], precision=precision, title=coloraxe_title
+        )
+    )
+    fig.update_coloraxes(
+        colorbar_tickfont_size=colorbar_tickfont_size,
+        colorbar_title_font_size=colorbar_title_font_size,
+    )
 
     return fig

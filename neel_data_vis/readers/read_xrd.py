@@ -132,7 +132,7 @@ def get_xrd_image(hdf5_file, group_path):
 
     try:
         with h5py.File(hdf5_file, "r") as h5f:
-            image["2D_Camera_Image"] = h5f[group_path]["2Dimage"][()]
+            image["2Dimage"] = h5f[group_path]["2Dimage"][()]
 
     except KeyError:
         print("Warning, group path not found in hdf5 file.")

@@ -709,9 +709,9 @@ def get_measurement_data(hdf5_file, datatype, meas_key=None, exclude_wafer_edges
         )
 
         # Add units for x, y positions for all datasets
-        position_units = get_position_units(hdf5_file, data_type=datatype)
-        dataset["x"].attrs["units"] = position_units["x_pos"]
-        dataset["y"].attrs["units"] = position_units["y_pos"]
+        # position_units = get_position_units(hdf5_file, data_type=datatype)
+        dataset["x"].attrs["units"] = "mm"
+        dataset["y"].attrs["units"] = "mm"
 
         # Add units for scan axis in all datasets
         for key in units.keys():
