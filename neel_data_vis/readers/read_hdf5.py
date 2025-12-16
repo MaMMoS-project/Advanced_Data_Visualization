@@ -192,7 +192,8 @@ def set_moke_values(
             )
 
         data[label_value].loc[{"y": y, "x": x}] = moke_value[value]
-        data[label_value].attrs["units"] = moke_units[value]
+        if value in moke_units.keys():
+            data[label_value].attrs["units"] = moke_units[value]
 
     return data
 

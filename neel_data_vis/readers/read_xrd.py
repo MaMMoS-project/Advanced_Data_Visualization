@@ -117,10 +117,12 @@ def get_xrd_pattern(hdf5_file, group_path):
             if isinstance(node[key], h5py.Group):
                 if key == "integrated":
                     measurement["counts"] = node[key]["counts"][()]
+                    measurement["intensity"] = node[key]["intensity"][()]
                     measurement["tth"] = node[key]["tth"][()]
                     measurement["q"] = node[key]["q"][()]
 
                     measurement_units["counts"] = "a.u."
+                    measurement_units["intensity"] = "a.u."
                     measurement_units["tth"] = "(°)"
                     measurement_units["q"] = "nm^-1"
 
