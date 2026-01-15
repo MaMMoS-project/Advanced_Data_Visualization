@@ -36,10 +36,18 @@ def get_moke_results(hdf5_file, group_path, result_type=None):
         for key in node.keys():
             if isinstance(node[key], h5py.Group) and key != "parameters":
                 results_moke[key] = node[key]["mean"][()]
-                units_results_moke[key] = node[key]["mean"].attrs["units"]
+                # Check if 'units' attribute exists before accessing it
+                if "units" in node[key]["mean"].attrs:
+                    units_results_moke[key] = node[key]["mean"].attrs["units"]
+                else:
+                    units_results_moke[key] = ""
             elif isinstance(node[key], h5py.Dataset):
                 results_moke[key] = node[key][()]
-                units_results_moke[key] = node[key].attrs["units"]
+                # Check if 'units' attribute exists before accessing it
+                if "units" in node[key].attrs:
+                    units_results_moke[key] = node[key].attrs["units"]
+                else:
+                    units_results_moke[key] = ""
 
     if result_type is not None:
         if result_type.lower() in results_moke.keys():
