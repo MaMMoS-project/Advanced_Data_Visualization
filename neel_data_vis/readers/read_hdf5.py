@@ -49,15 +49,22 @@ def make_group_path(
                 continue
 
             if data_type is None:
-                start_group.append(f"./{group}")
+                if "positions" in h5f[f"./{group}"].keys():
+                    start_group.append(f"./{group}/positions")
+                else :
+                    start_group.append(f"./{group}")
                 break
 
             if h5f[f"./{group}"].attrs["HT_type"] == data_type.lower():
-                start_group.append(f"./{group}")
+                # For new structure we detect if the positions group exists
+                if "positions" in h5f[f"./{group}"].keys():
+                    start_group.append(f"./{group}/positions")
+                else :
+                    start_group.append(f"./{group}")
 
         if len(start_group) == 0:
             print(f"Data type {data_type} not found in HDF5 file.")
-            return 1
+            return None
 
         if measurement_type is None or x_pos is None or y_pos is None:
             return start_group
@@ -69,7 +76,11 @@ def make_group_path(
 
         group_path = []
         for elm_start_group in start_group:
-            group_path.append(f"{elm_start_group}/{group}/{measurement_type.lower()}")
+            # For new structure we detect if the positions group exists
+            if "positions" in h5f[elm_start_group]:
+                group_path.append(f"{elm_start_group}/positions/{group}/{measurement_type.lower()}")
+            else:
+                group_path.append(f"{elm_start_group}/{group}/{measurement_type.lower()}")
 
     return group_path
 
@@ -91,7 +102,12 @@ def get_all_positions(hdf5_file, data_type: str):
         A list of tuples (x, y) containing all positions present in the HDF5 file for the given data type.
     """
     positions = []
-    data_group = make_group_path(hdf5_file, data_type=data_type)[0]
+    data_group_list = make_group_path(hdf5_file, data_type=data_type)
+
+    if data_group_list is None:
+        return positions
+    else:
+        data_group = data_group_list[0]
 
     with h5py.File(hdf5_file, "r") as h5f:
         for group in h5f[data_group]:
@@ -131,8 +147,8 @@ def get_position_units(hdf5_file, data_type: str):
         for key in h5f[f"{root_group}"].keys():
             instrument = h5f[f"{root_group}"][key]["instrument"]
             break
-        position_units["x_pos"] = instrument["x_pos"].attrs["units"]
-        position_units["y_pos"] = instrument["y_pos"].attrs["units"]
+        position_units["x_pos"] = "mm"
+        position_units["y_pos"] = "mm"
 
     return position_units
 
@@ -406,48 +422,48 @@ def get_full_dataset(hdf5_file, exclude_wafer_edges=True):
         print("Warning: No MOKE results found in the file")
         pass
 
-    try:
-        # Looking for XRD positions and scan numbers
-        positions = get_all_positions(hdf5_file, data_type="XRD")
+    # Looking for XRD positions and scan numbers
+    current_data_type = "xrd"
+    positions = get_all_positions(hdf5_file, data_type=current_data_type)
 
-        # Retrieve Lattice Parameter (from XRD results)
-        for x, y in positions:
-            if (
-                (np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges)
-                or np.abs(x) > 40
-                or np.abs(y) > 40
-            ):
-                continue
+    if len(positions) == 0 :
+        positions = get_all_positions(hdf5_file, data_type="xrd_wafer")
+        current_data_type = "xrd_wafer"
 
-            xrd_group_path = make_group_path(
-                hdf5_file, x_pos=x, y_pos=y, data_type="XRD", measurement_type="Results"
-            )
+    # Retrieve Lattice Parameter (from XRD results)
+    for x, y in positions:
+        if (
+            (np.abs(x) + np.abs(y) >= 60 and exclude_wafer_edges)
+            or np.abs(x) > 40
+            or np.abs(y) > 40
+        ):
+            continue
 
-            # Checking if there are multiple XRD scans
-            for group_path in xrd_group_path:
-                group_path_label = get_group_path_label(xrd_group_path, group_path)
+        xrd_group_path = make_group_path(
+            hdf5_file, x_pos=x, y_pos=y, data_type=current_data_type, measurement_type="Results"
+        )
 
-                try:
-                    xrd_phases, xrd_units = get_xrd_results(
-                        hdf5_file, group_path, result_type="Phases"
-                    )
-                    data = set_xrd_phases(
-                        data,
-                        xrd_phases,
-                        xrd_units,
-                        x,
-                        y,
-                        x_vals,
-                        y_vals,
-                        group_path_label=group_path_label,
-                    )
-                except KeyError:
-                    # Skipping the scans with no results
-                    pass
+        # Checking if there are multiple XRD scans
+        for group_path in xrd_group_path:
+            group_path_label = get_group_path_label(xrd_group_path, group_path)
 
-    except (KeyError, TypeError):
-        print("Warning: No XRD results found in the file")
-        pass
+            try:
+                xrd_phases, xrd_units = get_xrd_results(
+                    hdf5_file, group_path, result_type="Phases"
+                )
+                data = set_xrd_phases(
+                    data,
+                    xrd_phases,
+                    xrd_units,
+                    x,
+                    y,
+                    x_vals,
+                    y_vals,
+                    group_path_label=group_path_label,
+                )
+            except KeyError:
+                # Skipping the scans with no results
+                pass
 
     try:
         # Looking for PROFIL positions and scan numbers

@@ -84,9 +84,10 @@ def plot_1d(
 def plot_heatmap(
     data,
     graph_title=None,
-    coloraxe_title=None,
+    coloraxe_title="",
     colorscale="plasma",
     range_color=(0, 100),
+    text_auto=False,
     width=700,
     height=600,
     axis_tick_font_size=22,
@@ -101,7 +102,7 @@ def plot_heatmap(
         color_continuous_scale=colorscale,
         range_color=range_color,
         aspect="equal",
-        # text_auto=True,
+        text_auto=text_auto,
     )  # using imshow from plotly
     fig.update_layout(
         title=graph_title,
@@ -143,7 +144,7 @@ def plot_heatmap(
 def plot_scatter(
     x,
     y,
-    color,
+    color=None,
     range_color=None,
     precision=0,
     mask=None,
@@ -162,11 +163,11 @@ def plot_scatter(
     marker_size=10,
 ):
     # Convert xarray to 1D numpy array
-    if isinstance(x, xr.core.dataarray.DataArray):
+    if isinstance(x, xr.DataArray):
         x = x.values.reshape(-1)
-    if isinstance(y, xr.core.dataarray.DataArray):
+    if isinstance(y, xr.DataArray):
         y = y.values.reshape(-1)
-    if isinstance(color, xr.core.dataarray.DataArray):
+    if isinstance(color, xr.DataArray):
         color = color.values.reshape(-1)
 
     # Convert numpy 2D array to 1D array
@@ -192,16 +193,20 @@ def plot_scatter(
         mask = (df[f"{color_label}"] >= mask[0]) & (df[f"{color_label}"] <= mask[1])
         df = df[mask]
 
-    if range_color is None:
-        range_color = (df[f"{color_label}"].min(), df[f"{color_label}"].max())
+    if color is not None:
+        if range_color is None:
+            range_color = (df[f"{color_label}"].min(), df[f"{color_label}"].max())
 
-    fig = px.scatter(
-        df,
-        x=f"{x_label}",
-        y=f"{y_label}",
-        color=f"{color_label}",
-        range_color=range_color,
-    )
+        fig = px.scatter(
+            df,
+            x=f"{x_label}",
+            y=f"{y_label}",
+            color=f"{color_label}",
+            range_color=range_color,
+        )
+    else:
+        fig = px.scatter(df, x=f"{x_label}", y=f"{y_label}")
+
     fig.update_layout(
         title=graph_title,
         xaxis_title=x_label,
@@ -230,6 +235,7 @@ def plot_scatter(
         fig.update_xaxes(range=x_range)
     if y_range is not None:
         fig.update_yaxes(range=y_range)
+
     fig.update_traces(marker={"size": marker_size})
     fig.update_coloraxes(colorbar_tickfont_size=colorbar_tickfont_size)
 
@@ -257,13 +263,13 @@ def plot_ternary(
     marker_size=10,
 ):
     # Convert xarray to 1D numpy array
-    if isinstance(a, xr.core.dataarray.DataArray):
+    if isinstance(a, xr.DataArray):
         a = a.values.reshape(-1)
-    if isinstance(b, xr.core.dataarray.DataArray):
+    if isinstance(b, xr.DataArray):
         b = b.values.reshape(-1)
-    if isinstance(c, xr.core.dataarray.DataArray):
+    if isinstance(c, xr.DataArray):
         c = c.values.reshape(-1)
-    if isinstance(color, xr.core.dataarray.DataArray):
+    if isinstance(color, xr.DataArray):
         color = color.values.reshape(-1)
 
     # Convert numpy 2D array to 1D array
@@ -393,7 +399,7 @@ def plot_waterfall(
 def plot_image(
     data,
     graph_title=None,
-    coloraxe_title=None,
+    coloraxe_title="",
     colorscale="plasma",
     range_color=(0, 100),
     width=1000,
